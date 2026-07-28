@@ -3,8 +3,21 @@ name: build
 on:
   push:
     branches: [main, master]
+    # The build clones the UBports adaptation tools and runs those; nothing
+    # under tools/ or docs/ can change its output, so pushes touching only
+    # those must not spend 30 minutes of runner time.
+    paths-ignore:
+      - 'tools/**'
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
   pull_request:
   workflow_dispatch:
+
+# A newer push supersedes an in-flight build of the same branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
