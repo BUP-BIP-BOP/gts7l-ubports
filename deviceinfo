@@ -12,7 +12,7 @@ deviceinfo_arch="aarch64"
 
 # Kernel: fork of the sm8250 tree that already carries Ubuntu Touch patches for
 # this family (gts7xl bring-up, June 2026). Change to YOUR fork before building.
-deviceinfo_kernel_source="https://github.com/mukahraman/kernel_samsung_sm8250"
+deviceinfo_kernel_source="https://github.com/BUP-BIP-BOP/kernel_samsung_sm8250"
 deviceinfo_kernel_source_branch="ubuntu-touch"
 
 # Fragment order matters: merge_config is last-wins and halium.config must win
