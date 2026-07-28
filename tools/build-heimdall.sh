@@ -1,7 +1,14 @@
 #!/bin/bash
 # Build the heimdall CLI for macOS (Apple Silicon included) into ./bin/heimdall.
 #
-# Two upstream problems are patched here:
+# Uses the amo13 fork, NOT upstream Benjamin-Dobell. Upstream 1.4.2 builds fine
+# but dies on this device with
+#     ERROR: Failed to send handshake!
+# because it never resets the USB device before the handshake; the bulk write
+# then times out with actual_length=0. Verified on SM-T875, macOS 27 arm64:
+# upstream fails, the fork reaches "Session begun" and downloads the PIT.
+#
+# Two problems still need patching on top of the fork:
 #   1. CMakeLists declares cmake_minimum_required 2.8.4, which CMake 4 refuses
 #      -> -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 #   2. on macOS libusb is linked statically and pulls IOKit/CoreFoundation/
@@ -16,7 +23,7 @@ command -v cmake >/dev/null || { echo "brew install cmake"; exit 1; }
     echo "brew install libusb"; exit 1; }
 
 rm -rf "$WORK"
-git clone -q --depth=1 https://github.com/Benjamin-Dobell/Heimdall "$WORK"
+git clone -q --depth=1 https://github.com/amo13/Heimdall "$WORK"
 
 python3 - "$WORK/heimdall/CMakeLists.txt" <<'PATCH'
 import sys
