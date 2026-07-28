@@ -5,7 +5,7 @@ on:
     branches: [main, master]
     # The build clones the UBports adaptation tools and runs those; nothing
     # under tools/ or docs/ can change its output, so pushes touching only
-    # those must not spend 30 minutes of runner time.
+    # those must not spend runner time.
     paths-ignore:
       - 'tools/**'
       - 'docs/**'
@@ -13,28 +13,37 @@ on:
       - '.gitignore'
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_rootfs:
+        description: 'Also build ubuntu.img (slow; unchanged unless deviceinfo/overlay moved)'
+        type: boolean
+        default: true
 
 # A newer push supersedes an in-flight build of the same branch.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    # 22.04 is required: the AOSP clang prebuilts need libtinfo5 and the build
-    # tools still call python2, neither of which exists in 24.04.
-    container: ubuntu:22.04
-    timeout-minutes: 300
+env:
+  # 22.04 is required: the AOSP clang prebuilts need libtinfo5 and the tools
+  # still call python2, neither of which exists in 24.04.
+  IMAGE: ubuntu:22.04
 
+jobs:
+  # Kernel, boot, dtbo, recovery and the device tarball. ~20 minutes, and the
+  # artifact is small enough to pull over a bad link.
+  kernel:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    timeout-minutes: 180
     steps:
       - name: Install build dependencies
         run: |
           apt update
           apt install -y --no-install-recommends \
             bc bison build-essential ca-certificates cpio curl fakeroot flex \
-            git kmod libelf-dev libssl-dev libtinfo5 lz4 python2 python3 sudo \
-            unzip wget xz-utils pahole libbpf-dev img2simg jq zstd
+            git kmod libelf-dev libssl-dev libtinfo5 lz4 python2 python3 \
+            python3-pip sudo unzip wget xz-utils pahole libbpf-dev
           ln -sf python2 /usr/bin/python
 
       - uses: actions/checkout@v4
@@ -44,6 +53,70 @@ jobs:
 
       - name: Build kernel and boot images
         run: ./build/build.sh
+
+      # Samsung's ABL parses the AVB footer of the image it boots even with
+      # verification disabled in vbmeta. Unsigned images stop at the splash
+      # with no kernel and no USB, so sign here and ship ready-to-flash files.
+      - name: Sign boot and recovery
+        run: |
+          git clone --depth=1 https://android.googlesource.com/platform/external/avb /tmp/avb
+          KEY=/tmp/avb/test/data/testkey_rsa4096.pem
+          for spec in "boot:71303168" "recovery:86888448"; do
+            name="${spec%%:*}"; size="${spec##*:}"
+            [ -f "out/$name.img" ] || continue
+            python3 /tmp/avb/avbtool.py erase_footer --image "out/$name.img" 2>/dev/null || true
+            python3 /tmp/avb/avbtool.py add_hash_footer \
+              --image "out/$name.img" --partition_name "$name" \
+              --partition_size "$size" --algorithm SHA256_RSA4096 \
+              --key "$KEY" --rollback_index 1900000000
+          done
+
+      - name: Build vbmeta with verification disabled
+        run: python3 /tmp/avb/avbtool.py make_vbmeta_image --flags 3 --padding_size 4096 --output out/vbmeta-disabled.img
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gts7l-kernel
+          if-no-files-found: error
+          path: |
+            out/boot.img
+            out/dtbo.img
+            out/recovery.img
+            out/vbmeta-disabled.img
+
+      # Consumed by the rootfs job; kept separate so the flashable images stay
+      # a small download.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gts7l-device-tarball
+          if-no-files-found: error
+          path: out/device_*.tar.xz
+
+  # ubuntu.img: the UT rootfs, the Halium container and our overlay. ~10
+  # minutes and ~700 MB, and it only changes when deviceinfo or overlay/ do.
+  rootfs:
+    needs: kernel
+    if: github.event_name != 'workflow_dispatch' || inputs.build_rootfs
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    timeout-minutes: 180
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt update
+          apt install -y --no-install-recommends \
+            ca-certificates curl git img2simg jq sudo unzip wget xz-utils zstd \
+            e2fsprogs python3
+
+      - uses: actions/checkout@v4
+
+      - name: Clone adaptation build tools
+        run: git clone --depth=1 https://gitlab.com/ubports/porting/community-ports/halium-generic-adaptation-build-tools build
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: gts7l-device-tarball
+          path: out
 
       - name: Build flashable rootfs
         run: |
@@ -56,10 +129,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: gts7l-images
+          name: gts7l-rootfs
           if-no-files-found: error
-          path: |
-            out/boot.img
-            out/dtbo.img
-            out/recovery.img
-            out/ubuntu.img.zst
+          path: out/ubuntu.img.zst
