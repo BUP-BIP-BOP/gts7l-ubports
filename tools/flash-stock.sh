@@ -43,7 +43,35 @@ scope_files() {
 }
 
 info() { printf '\033[36m==> %s\033[0m\n' "$*"; }
+warn() { printf '\033[33m%s\033[0m\n' "$*"; }
 red()  { printf '\033[31m%s\033[0m\n' "$*"; }
+
+RETRIES="${RETRIES:-3}"
+SESSION_OPEN=0
+
+# One partition per invocation: a session that carried several partitions died
+# here on the second file with "Failed to confirm end of file transfer
+# sequence". --resume is required for every command after the first in the same
+# download-mode session, otherwise heimdall reports "Failed to send handshake!".
+write_partition() { # PARTITION file
+    local part="$1" file="$2" attempt=1
+    while :; do
+        local cmd=("$HEIMDALL" flash "--$part" "$file" --no-reboot)
+        [ "$SESSION_OPEN" = 1 ] && cmd+=(--resume)
+        if "${cmd[@]}"; then
+            SESSION_OPEN=1
+            return 0
+        fi
+        SESSION_OPEN=0
+        if [ "$attempt" -ge "$RETRIES" ]; then
+            red "$part failed after $attempt attempts"
+            return 1
+        fi
+        attempt=$((attempt + 1))
+        warn "$part: retry $attempt/$RETRIES"
+        sleep 3
+    done
+}
 
 read_pit() {
     if [ ! -s "$PIT_TXT" ]; then
@@ -93,7 +121,8 @@ plan|flash)
     read_pit
     [ -d "$UNPACK" ] || { red "run '$0 prepare' first"; exit 1; }
 
-    ARGS=()
+    PARTS=()
+    FILES=()
     ALLOWED=" $(scope_files | tr '\n' ' ') "
     info "scope: $SCOPE"
     printf '%-22s %-24s %s\n' PARTITION FILE SIZE
@@ -104,28 +133,65 @@ plan|flash)
         [ -f "$f" ] || continue
         sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
         printf '%-22s %-24s %s\n' "$part" "$fn" "$sz"
-        ARGS+=("--${part}" "$f")
+        PARTS+=("$part")
+        FILES+=("$f")
     done < <(pit_map)
 
     echo
-    echo "${#ARGS[@]} arguments, $(( ${#ARGS[@]} / 2 )) partitions"
+    echo "${#PARTS[@]} partitions"
 
+    # ONLY=PART1,PART2 restricts the write to specific partitions, e.g. to
+    # resume after a failure without redoing the multi-GB ones.
     if [ "${1:-}" = "flash" ]; then
         if [ "${2:-}" != "--go" ]; then
             echo
-            echo "dry run. The command that would run:"
-            echo "  $HEIMDALL flash ${ARGS[*]} --no-reboot"
-            echo "Re-run with:  $0 flash --go"
+            echo "dry run. Re-run with:  $0 flash --go"
+            echo "Each partition is written by its own heimdall invocation."
             exit 0
         fi
-        red "About to write $(( ${#ARGS[@]} / 2 )) partitions. Do not unplug."
+        red "About to write ${#PARTS[@]} partitions. Do not unplug."
         if [ "${AUTO_CONFIRM:-}" != "1" ]; then
             case "$SCOPE" in *BL*) red "SCOPE includes BL: an interruption during
 XBL/ABL/TZ/AOP is unrecoverable." ;; esac
             read -r -p "type FLASH to proceed: " a
             [ "$a" = "FLASH" ] || { echo aborted; exit 1; }
         fi
-        "$HEIMDALL" flash "${ARGS[@]}" --no-reboot
+
+        # MULTI=1: one heimdall invocation for everything. This device only
+        # accepts a single write per Download Mode entry, so this is the only
+        # shape that can flash a whole firmware without re-entering the mode
+        # between partitions — at the cost of losing everything if one file
+        # fails mid-way.
+        if [ "${MULTI:-0}" = "1" ]; then
+            ARGS=()
+            for i in "${!PARTS[@]}"; do
+                if [ -n "${ONLY:-}" ]; then
+                    case ",$ONLY," in *",${PARTS[$i]},"*) ;; *) continue ;; esac
+                fi
+                ARGS+=("--${PARTS[$i]}" "${FILES[$i]}")
+            done
+            info "single session, $(( ${#ARGS[@]} / 2 )) partitions"
+            exec "$HEIMDALL" flash "${ARGS[@]}" --no-reboot
+        fi
+
+        FAILED=()
+        for i in "${!PARTS[@]}"; do
+            part="${PARTS[$i]}"
+            if [ -n "${ONLY:-}" ]; then
+                case ",$ONLY," in *",$part,"*) ;; *) continue ;; esac
+            fi
+            info "[$((i + 1))/${#PARTS[@]}] $part"
+            write_partition "$part" "${FILES[$i]}" || FAILED+=("$part")
+        done
+
+        echo
+        if [ "${#FAILED[@]}" -gt 0 ]; then
+            red "failed: ${FAILED[*]}"
+            echo "Re-enter Download Mode and retry just those:"
+            echo "  ONLY=$(IFS=,; echo "${FAILED[*]}") $0 flash --go"
+            exit 1
+        fi
+        info "all ${#PARTS[@]} partitions written"
     fi
     ;;
 
