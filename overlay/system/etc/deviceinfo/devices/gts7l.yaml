@@ -16,8 +16,8 @@ gts7l:
   NumBuiltInDisplays: 1
   OfonoPlugin: binder
   OfonoImplementsIms: true
-  # VERIFY on device: ls /sys/class/backlight/ and /sys/class/leds/
+  # Confirmed on stock: /sys/class/backlight holds panel and panel0-backlight,
+  # /sys/class/leds is empty — the tablet has no flash LED, so no
+  # FlashlightSysfsPath here.
   BacklightSysfsPath:
     - /sys/class/backlight/panel0-backlight
-  FlashlightSysfsPath:
-    - /sys/class/leds/torch-sec1/brightness

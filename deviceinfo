@@ -1,9 +1,15 @@
 # Ubuntu Touch port — Samsung Galaxy Tab S7 LTE (SM-T875 / gts7l)
 # SoC: Qualcomm SM8250 "kona" (Snapdragon 865+), A-only, no fastboot (Download Mode only)
 #
-# Base: stock Android 13 (binary 5+). The device's anti-rollback fuse is burned
-# to 5, so anything older is rejected with "FUSED 5 BINARY 2" and the Android 13
-# vendor already on the device is what Halium 13 talks to.
+# Base: stock T875XXS5DXD1. The anti-rollback fuse is burned to 5, so anything
+# older is rejected with "FUSED 5 BINARY 2" — Android 13 is the floor.
+#
+# Halium follows the VENDOR api level, not the system one. Measured on device:
+#   ro.build.version.sdk         33   (system, Android 13)
+#   ro.vendor.build.version.sdk  30   (vendor, still Android 11)
+#   ro.vndk.version              30
+# Samsung updated the system across three releases and left the vendor at the
+# launch level, so this is a Halium 11 device despite running Android 13.
 #
 # Boot image values below were read out of the stock T875XXS5DXD1 AP with
 #   tools/inspect-stock-bootimg.sh AP_T875XXS5DXD1*.tar.md5
@@ -77,7 +83,7 @@ deviceinfo_recovery_partition_size="86888448"
 deviceinfo_use_unified_recovery="true"
 deviceinfo_unified_recovery_ui_density="xhdpi"
 
-deviceinfo_halium_version="13"
+deviceinfo_halium_version="11"
 deviceinfo_ubuntu_touch_release="24.04-1.x"
 deviceinfo_use_overlaystore="true"
 deviceinfo_system_partition_size="4000M"
