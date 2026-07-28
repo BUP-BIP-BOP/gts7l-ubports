@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # 22.04 is required: the AOSP clang prebuilts need libtinfo5 and the build
+    # tools still call python2, neither of which exists in 24.04.
+    container: ubuntu:22.04
+    timeout-minutes: 300
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt update
+          apt install -y --no-install-recommends \
+            bc bison build-essential ca-certificates cpio curl fakeroot flex \
+            git kmod libelf-dev libssl-dev libtinfo5 lz4 python2 python3 sudo \
+            unzip wget xz-utils pahole libbpf-dev img2simg jq zstd
+          ln -sf python2 /usr/bin/python
+
+      - uses: actions/checkout@v4
+
+      - name: Clone adaptation build tools
+        run: git clone --depth=1 https://gitlab.com/ubports/porting/community-ports/halium-generic-adaptation-build-tools build
+
+      - name: Build kernel and boot images
+        run: ./build/build.sh
+
+      - name: Build flashable rootfs
+        run: |
+          DEVICE="$(. ./deviceinfo && echo "$deviceinfo_codename")"
+          TARBALL="$(ls out/device_${DEVICE}*.tar.xz | head -n1)"
+          ./build/prepare-fake-ota.sh "$TARBALL" ota
+          ./build/system-image-from-ota.sh ota/ubuntu_command out
+          mv out/rootfs.img out/ubuntu.img
+          zstd -19 -T0 --rm out/ubuntu.img
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gts7l-images
+          if-no-files-found: error
+          path: |
+            out/boot.img
+            out/dtbo.img
+            out/recovery.img
+            out/ubuntu.img.zst

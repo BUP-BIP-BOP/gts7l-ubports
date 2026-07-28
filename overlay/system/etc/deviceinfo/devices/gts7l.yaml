@@ -1,0 +1,23 @@
+gts7l:
+  Vendor: Samsung
+  PrettyName: Galaxy Tab S7 LTE
+  DeviceType: tablet
+  # 2560x1600 @ 11" -> LineageOS ships TARGET_SCREEN_DENSITY 320 (xhdpi)
+  GridUnit: 16
+  SupportedOrientations:
+    - Portrait
+    - InvertedPortrait
+    - Landscape
+    - InvertedLandscape
+  PrimaryOrientation:
+    - Landscape
+  LomiriInteractiveBlur:
+    - true
+  NumBuiltInDisplays: 1
+  OfonoPlugin: binder
+  OfonoImplementsIms: true
+  # VERIFY on device: ls /sys/class/backlight/ and /sys/class/leds/
+  BacklightSysfsPath:
+    - /sys/class/backlight/panel0-backlight
+  FlashlightSysfsPath:
+    - /sys/class/leds/torch-sec1/brightness

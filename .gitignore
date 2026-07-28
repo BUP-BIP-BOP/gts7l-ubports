@@ -1,0 +1,8 @@
+build/
+workdir/
+out/
+ota/
+*.img
+*.img.zst
+*.tar.xz
+deviceinfo.bak

@@ -1,0 +1,61 @@
+# Ubuntu Touch port — Samsung Galaxy Tab S7 LTE (SM-T875 / gts7l)
+# SoC: Qualcomm SM8250 "kona" (Snapdragon 865+), A-only, no fastboot (Download Mode only)
+#
+# Values marked "VERIFY" must be confirmed against the stock Android 11 boot.img
+# of your exact unit:
+#   python3 unpack_bootimg.py --boot_img boot.img --out out
+
+deviceinfo_name="Galaxy Tab S7 LTE"
+deviceinfo_manufacturer="Samsung"
+deviceinfo_codename="gts7l"
+deviceinfo_arch="aarch64"
+
+# Kernel: fork of the sm8250 tree that already carries Ubuntu Touch patches for
+# this family (gts7xl bring-up, June 2026). Change to YOUR fork before building.
+deviceinfo_kernel_source="https://github.com/mukahraman/kernel_samsung_sm8250"
+deviceinfo_kernel_source_branch="ubuntu-touch"
+
+# Fragment order matters: merge_config is last-wins and halium.config must win
+# over halium-extra.config (it re-enables CONFIG_ANDROID_BINDERFS, which the
+# Droidian fragment disables — without it the Android container never starts).
+deviceinfo_kernel_defconfig="vendor/kona-perf_defconfig vendor/samsung/kona-sec-common.config vendor/samsung/gts7l.config halium-extra.config halium.config"
+
+deviceinfo_kernel_clang_compile="true"
+deviceinfo_kernel_llvm_compile="true"
+deviceinfo_kernel_image_name="Image"
+
+# console=tty0 is mandatory for the UT rootfs. buildproduct= selects the Samsung
+# board variant. androidboot.selinux=permissive keeps the container HALs alive.
+deviceinfo_kernel_cmdline="console=tty0 androidboot.hardware=qcom androidboot.memcg=1 androidboot.selinux=permissive lpm_levels.sleep_disabled=1 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 loop.max_part=7 cgroup.memory=nokmem,nosocket firmware_class.path=/vendor/firmware_mnt/image printk.devkmsg=on cpuinfo.chipname=SM8250 buildproduct=gts7l panic=4"
+
+# Boot image — device launched with Android 10 => header v2 (LineageOS BoardConfig).
+deviceinfo_generate_bootimg="true"
+deviceinfo_bootimg_header_version="2"
+deviceinfo_bootimg_os_version="11"          # VERIFY against stock boot.img
+deviceinfo_bootimg_os_patch_level="2022-04" # VERIFY against stock boot.img
+deviceinfo_bootimg_qcdt="false"
+deviceinfo_bootimg_partition_size="71303168"
+deviceinfo_bootimg_tailtype="SEAndroid"
+
+deviceinfo_flash_pagesize="4096"
+deviceinfo_flash_offset_base="0x00000000"
+deviceinfo_flash_offset_kernel="0x00008000"
+deviceinfo_flash_offset_ramdisk="0x01000000"
+deviceinfo_flash_offset_second="0x00f00000"
+deviceinfo_flash_offset_tags="0x00000100"
+deviceinfo_flash_offset_dtb="0x01f00000"
+
+# DTB is embedded in boot.img (BOARD_INCLUDE_DTB_IN_BOOTIMG := true upstream).
+deviceinfo_dtb="vendor/qcom/kona.dtb vendor/qcom/kona-v2.dtb vendor/qcom/kona-v2.1.dtb"
+
+# DTBO goes to the dedicated DTBO partition; the bootloader picks the matching
+# hardware revision at boot, so ship all EUR revisions.
+# KOR units: swap eur -> kor. USA units: kor/usa start at r02.
+deviceinfo_dtbo="samsung/gts7l/kona-sec-gts7l-eur-overlay-r00.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r01.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r02.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r03.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r04.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r05.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r06.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r07.dtbo"
+deviceinfo_kernel_apply_overlay="false"
+
+deviceinfo_halium_version="11"
+deviceinfo_ubuntu_touch_release="24.04-1.x"
+deviceinfo_use_overlaystore="true"
+deviceinfo_system_partition_size="4000M"
+deviceinfo_rootfs_image_sector_size="4096"
