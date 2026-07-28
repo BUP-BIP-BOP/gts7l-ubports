@@ -25,6 +25,23 @@ HEIMDALL="${HEIMDALL:-$HERE/bin/heimdall}"
 # touch: the GPT copies and the PIT itself.
 SKIP_PARTITIONS="PIT PGPT0 PGPT1 PGPT2 PGPT3 SGPT0 SGPT1 SGPT2 SGPT3 MD5"
 
+# Which tarballs to take files from. Default excludes BL: writing XBL/ABL/TZ/AOP
+# is the only part of a stock flash that can brick the device beyond recovery,
+# and it is not needed to put an Android 11 vendor into super.
+# Set SCOPE="BL AP CP CSC" for the full Odin-equivalent flash.
+SCOPE="${SCOPE:-AP CP CSC}"
+
+# stdout: one file basename per line, for the tarballs in SCOPE
+scope_files() {
+    local t
+    for t in $SCOPE; do
+        for tarball in "$FW_DIR"/${t}_*.tar.md5; do
+            [ -f "$tarball" ] || continue
+            tar -tf "$tarball" | sed 's|\.lz4$||' | grep -v '/$'
+        done
+    done
+}
+
 info() { printf '\033[36m==> %s\033[0m\n' "$*"; }
 red()  { printf '\033[31m%s\033[0m\n' "$*"; }
 
@@ -77,10 +94,12 @@ plan|flash)
     [ -d "$UNPACK" ] || { red "run '$0 prepare' first"; exit 1; }
 
     ARGS=()
-    MISSING=()
+    ALLOWED=" $(scope_files | tr '\n' ' ') "
+    info "scope: $SCOPE"
     printf '%-22s %-24s %s\n' PARTITION FILE SIZE
     while IFS=$'\t' read -r fn part; do
         case " $SKIP_PARTITIONS " in *" $part "*) continue ;; esac
+        case "$ALLOWED" in *" $fn "*) ;; *) continue ;; esac
         f="$UNPACK/$fn"
         [ -f "$f" ] || continue
         sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
@@ -99,10 +118,13 @@ plan|flash)
             echo "Re-run with:  $0 flash --go"
             exit 0
         fi
-        red "About to write ${#ARGS[@]} files, including bootloader partitions."
-        red "An interruption during the bootloader set is unrecoverable."
-        read -r -p "type FLASH to proceed: " a
-        [ "$a" = "FLASH" ] || { echo aborted; exit 1; }
+        red "About to write $(( ${#ARGS[@]} / 2 )) partitions. Do not unplug."
+        if [ "${AUTO_CONFIRM:-}" != "1" ]; then
+            case "$SCOPE" in *BL*) red "SCOPE includes BL: an interruption during
+XBL/ABL/TZ/AOP is unrecoverable." ;; esac
+            read -r -p "type FLASH to proceed: " a
+            [ "$a" = "FLASH" ] || { echo aborted; exit 1; }
+        fi
         "$HEIMDALL" flash "${ARGS[@]}" --no-reboot
     fi
     ;;

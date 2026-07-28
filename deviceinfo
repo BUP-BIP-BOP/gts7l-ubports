@@ -71,7 +71,7 @@ deviceinfo_recovery_partition_size="86888448"
 deviceinfo_use_unified_recovery="true"
 deviceinfo_unified_recovery_ui_density="xhdpi"
 
-deviceinfo_halium_version="11"
+deviceinfo_halium_version="13"
 deviceinfo_ubuntu_touch_release="24.04-1.x"
 deviceinfo_use_overlaystore="true"
 deviceinfo_system_partition_size="4000M"
