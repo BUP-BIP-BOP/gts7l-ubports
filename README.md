@@ -1,6 +1,6 @@
 # Ubuntu Touch → Samsung Galaxy Tab S7 LTE (SM-T875 / `gts7l`)
 
-Порт Ubuntu Touch 24.04 на базе Halium 11 для SM-T875. Сборка — GitHub Actions,
+Порт Ubuntu Touch 24.04 на базе Halium 13 для SM-T875. Сборка — GitHub Actions,
 прошивка — heimdall с macOS.
 
 ## Железо
@@ -33,10 +33,12 @@
 
 ## Статус
 
-- [x] deviceinfo собран из проверенных значений (LineageOS BoardConfig + Droidian kernel-info)
+- [x] deviceinfo: разметка из LineageOS BoardConfig, оффсеты сняты со стокового boot.img
 - [x] CI на GitHub Actions (ubuntu:22.04 контейнер — нужны libtinfo5 и python2)
-- [x] Overlay-заготовки: gbinder API 30, ofono binder (LTE), sensorfw HIDL, deviceinfo.yaml
-- [ ] Первая сборка ядра
+- [x] Overlay: gbinder API 33, ofono binder (LTE), sensorfw HIDL, deviceinfo.yaml
+- [x] Первая сборка ядра прошла (Halium 11; под Halium 13 пересобрать)
+- [x] heimdall собран и разговаривает с устройством, PIT снят
+- [ ] Пересборка под Halium 13
 - [ ] Первая загрузка
 - [ ] Тач / графика / звук / LTE
 
@@ -48,11 +50,14 @@
 
 # 2. Планшет подключён по USB с включённой отладкой:
 ./tools/collect-device-info.sh      # -> device-facts.txt
-./tools/set-halium-version.sh 13    # только если сток НЕ Android 11
 
-# 3. Когда скачана стоковая прошивка:
-./tools/inspect-stock-bootimg.sh AP_T875*.tar.md5   # -> os_version/patch_level
-./tools/make-vbmeta.sh                              # -> vbmeta-disabled.img
+# 3. Когда скачана стоковая прошивка Android 13 (binary >= 5):
+./tools/inspect-stock-bootimg.sh AP_T875XXS5DXD1*.tar.md5   # -> os_version/patch_level
+
+# 4. Прошивка
+./tools/build-heimdall.sh           # -> bin/heimdall (форк amo13)
+./tools/make-vbmeta.sh              # -> vbmeta-disabled.img
+./tools/flash-ut.sh check
 ```
 
 ## Сборка
@@ -68,9 +73,9 @@
 
 ## Прошивка
 
-См. [docs/FLASH.md](docs/FLASH.md). Кратко: стоковый Android 11 (One UI 3.1) как
-база вендор-блобов → TWRP → `ubuntu.img` в `/data/ubuntu.img` → heimdall
-`--VBMETA --BOOT --DTBO`.
+См. [docs/FLASH.md](docs/FLASH.md). Кратко: стоковый Android 13 остаётся на
+месте как база вендор-блобов (API 33) → своё UBports recovery → `ubuntu.img`
+в `/data/ubuntu.img` → heimdall `--VBMETA --BOOT --DTBO`.
 
 ## Отладка
 
@@ -81,12 +86,12 @@
 
 Помечено `VERIFY` в [deviceinfo](deviceinfo) и overlay-файлах:
 
-1. ~~`os_version` / `os_patch_level`~~ — снято со стокового boot.img
-   T875XXS2BUK2: `11.0.0` / `2021-11`
-2. ~~Оффсеты boot.img~~ — сняты оттуда же: ramdisk `0x02000000`,
-   tags `0x01e00000` (не дефолты mkbootimg!)
+1. ~~Оффсеты boot.img~~ — сняты со стокового образа: ramdisk `0x02000000`,
+   tags `0x01e00000` (не дефолты mkbootimg!). Сверить, что в Android 13 те же
+2. `os_version` / `os_patch_level` — сейчас значения от Android 11, заменить
+   на снятые из T875XXS5DXD1
 3. Ревизия платы (`ro.boot.hw_rev`) → какой `overlay-rNN.dtbo` выбирает бутлоадер
-4. Регион: сток — CSC `OXM` (мультирегион), dtbo сейчас EUR; сверить с `hw_rev`
-5. Версия radio HAL (1.4 vs 1.5) → `overlay/system/etc/ofono/*`
+4. Регион: CSC `SER`, dtbo сейчас EUR; сверить с `hw_rev`
+5. Версия radio HAL (сейчас 1.6) → `lshal | grep radio` внутри контейнера
 6. Пути backlight/flashlight в `gts7l.yaml`
 7. Список модулей → `tools/gen-modules-load.sh`

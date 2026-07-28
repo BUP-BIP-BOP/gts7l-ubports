@@ -1,9 +1,13 @@
 # Ubuntu Touch port — Samsung Galaxy Tab S7 LTE (SM-T875 / gts7l)
 # SoC: Qualcomm SM8250 "kona" (Snapdragon 865+), A-only, no fastboot (Download Mode only)
 #
-# Values marked "VERIFY" must be confirmed against the stock Android 11 boot.img
-# of your exact unit:
-#   python3 unpack_bootimg.py --boot_img boot.img --out out
+# Base: stock Android 13 (binary 5+). The device's anti-rollback fuse is burned
+# to 5, so anything older is rejected with "FUSED 5 BINARY 2" and the Android 13
+# vendor already on the device is what Halium 13 talks to.
+#
+# Values marked "VERIFY" must be re-read from the stock Android 13 boot.img
+# (T875XXS5DXD1) with:
+#   tools/inspect-stock-bootimg.sh AP_T875XXS5DXD1*.tar.md5
 
 deviceinfo_name="Galaxy Tab S7 LTE"
 deviceinfo_manufacturer="Samsung"
@@ -30,7 +34,9 @@ deviceinfo_kernel_image_name="Image"
 deviceinfo_kernel_clang_branch="master-kernel-build-2022"
 deviceinfo_kernel_clang_revision="r450784e"
 
-# Stock T875XXS2BUK2 cmdline verbatim, with four changes:
+# Cmdline as shipped by stock, with four changes. Taken from T875XXS2BUK2
+# (Android 11); VERIFY it is unchanged in T875XXS5DXD1 — Samsung does add
+# parameters across major versions.
 #   console=null -> console=tty0    required by the UT rootfs
 #   + androidboot.selinux=permissive  keeps the container HALs alive
 #   + loop.max_part=7                 rootfs is loop-mounted from /data/ubuntu.img
@@ -39,14 +45,17 @@ deviceinfo_kernel_cmdline="console=tty0 androidboot.hardware=qcom androidboot.me
 
 # Boot image — device launched with Android 10 => header v2 (LineageOS BoardConfig).
 deviceinfo_bootimg_header_version="2"
+# VERIFY: still the Android 11 values, must be replaced with the ones from
+# T875XXS5DXD1 before flashing.
 deviceinfo_bootimg_os_version="11.0.0"
 deviceinfo_bootimg_os_patch_level="2021-11"
 deviceinfo_bootimg_partition_size="71303168"
 deviceinfo_bootimg_tailtype="SEAndroid"
 
-# Read out of the stock boot.img of T875XXS2BUK2 (AP tarball), not guessed:
-# ramdisk sits at 0x02000000 and tags at 0x01e00000, i.e. NOT the mkbootimg
-# defaults that the Droidian kernel-info for this family uses.
+# Read out of a stock boot.img (T875XXS2BUK2), not guessed: ramdisk sits at
+# 0x02000000 and tags at 0x01e00000, i.e. NOT the mkbootimg defaults that the
+# Droidian kernel-info for this family uses. Offsets rarely move between Android
+# versions, but re-check against T875XXS5DXD1 anyway.
 deviceinfo_flash_pagesize="4096"
 deviceinfo_flash_offset_base="0x00000000"
 deviceinfo_flash_offset_kernel="0x00008000"

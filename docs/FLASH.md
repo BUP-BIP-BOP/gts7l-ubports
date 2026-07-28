@@ -12,8 +12,8 @@
 | `vbmeta-disabled.img` | ✅ собран (`tools/make-vbmeta.sh`, AVB flags=2, algorithm NONE) |
 | `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/ubuntu.img` | ⏳ артефакт CI `gts7l-images` |
 | `fw/TWRP-*-gts7lwifi-*.tar` | ✅ скачан — **запасной вариант**, это сборка для Wi-Fi модели |
-| `SAMFW/` T875XXS2BUK2 (Android 11, BL rev 2) | ✅ скачана, 4 файла + HOME_CSC |
-| `fw/stock/{boot,recovery,dtbo,vbmeta}.img` | ✅ распакованы из AP — откат без перепрошивки целиком |
+| `fw/pit.txt` | ✅ снят с устройства, 88 записей |
+| Стоковая T875XXS5DXD1 (Android 13, binary 5) | нужна только ради `boot.img` — свериться по оффсетам и `os_patch_level` |
 
 Проверка готовности в любой момент:
 
@@ -27,40 +27,36 @@ Recovery берём **свой**, из той же сборки, что и яд�
 если своё recovery не поедет: у Wi-Fi модели нет модема, dtb внутри той сборки
 чужой.
 
-## 1. Базовая прошивка определяет версию Halium
+## 1. База — стоковый Android 13, Halium 13
 
-Halium использует вендор-раздел, который остаётся на устройстве. Уровень API
-вендора обязан совпадать с версией Halium.
+Halium работает поверх вендор-раздела, который остаётся на устройстве, поэтому
+уровень API вендора обязан совпадать с версией Halium.
 
-**Сначала проверь bootloader binary rev** — 5-й символ с конца в номере прошивки
-(`T875XXU`**`2`**`BUxx` = BL rev 2):
+Счётчик антиотката на этом планшете прожжён в **5**. Проверено практикой:
+попытка залить Android 11 (binary 2) отклоняется загрузчиком с
 
-```bash
-adb shell getprop ro.boot.bootloader     # например T875XXU4CWx1 -> rev 4
-adb shell getprop ro.build.version.release
+```
+FUSED 5 BINARY 2
 ```
 
-Samsung не даёт откатиться на прошивку с меньшим BL rev — Odin отвечает
-`SW REV CHECK FAIL`. Это необратимо: rev растёт при каждом обновлении.
+Счётчик необратим, откат невозможен. Расшифровка версий Samsung (проверена на
+`T875XXS2BUK2` = binary 2, `B` = Android 11, `U` = 2021, `K` = ноябрь):
 
-| Текущий Android | Что делать |
-|---|---|
-| 11 (One UI 3.x) | ничего, порт уже настроен на Halium 11 |
-| 12 | `tools/set-halium-version.sh 12`, либо откат на 11, если BL rev позволяет |
-| 13 (One UI 5.x) | `tools/set-halium-version.sh 13` |
+```
+T875XXS 5 D X D 1
+        │ │ │ └── ревизия
+        │ │ └──── месяц: A=1 ... L=12
+        │ └────── год: U=2021, V=2022, W=2023, X=2024
+        └──────── binary (антиоткат) │ после него: B=Android 11, C=12, D=13, E=14
+```
 
-Скрипт синхронно правит `deviceinfo`, `gbinder.conf` (ApiLevel) и версию radio
-HAL в конфигах ofono.
+binary 5 на этой модели — линейка Android 13, то есть вендор на устройстве уже
+API 33. **Стоковую прошивку менять не нужно**, порт переведён на Halium 13
+командой `tools/set-halium-version.sh 13` — она синхронно правит `deviceinfo`,
+`gbinder.conf` (ApiLevel 33) и версию radio HAL в конфигах ofono.
 
-Стоковую прошивку ставь **целиком** (AP+BL+CP+CSC) через Odin/heimdall, дай
-загрузиться, подключи Wi-Fi и подожди ~5 минут — Samsung VaultKeeper должен
-«отпустить» бутлоадер, иначе heimdall дойдёт до 100% и завершится с
-`session end`, ничего не записав.
-
-> Продвинутый обход анти-роллбэка: с разблокированным бутлоадером и отключённым
-> vbmeta можно записать вендор от Android 11 прямо в `super` через TWRP+lpmake,
-> не трогая BL — проверки SW REV там нет. Риск: свежий BL/модем против старых
-> блобов. Только если Halium 13 не поедет.
+Стоковый AP нужен только для сверки: `tools/inspect-stock-bootimg.sh` достанет
+из него `os_version`, `os_patch_level` и оффсеты boot.img.
 
 ## 2. macOS: чем флэшить
 
@@ -153,19 +149,19 @@ lpmake --metadata-size 65536 --metadata-slots 2 --sparse --super-name super \
 ```
 
 Плюс: не занимает userdata, штатный OTA-путь UBports. Минус: ошибка = кирпич,
-и нужен `lpunpack` стокового `super.img` из прошивки Android 11.
+и нужен `lpunpack` стокового `super.img` из прошивки Android 13.
 
 ## 7.5 Быстрый откат на сток (без полной прошивки)
 
-Стоковые образы уже распакованы из AP в `fw/stock/`, размеры совпали с
-разметкой байт в байт (boot 71303168, recovery 86888448, dtbo 10485760):
+Распакуй из AP прошивки Android 13 четыре образа и залей их обратно:
 
 ```bash
+tools/flash-stock.sh prepare        # SCOPE не важен, распаковывает всё
 bin/heimdall flash \
-    --VBMETA fw/stock/vbmeta.img \
-    --BOOT   fw/stock/boot.img \
-    --DTBO   fw/stock/dtbo.img \
-    --RECOVERY fw/stock/recovery.img \
+    --VBMETA   fw/unpacked/vbmeta.img \
+    --BOOT     fw/unpacked/boot.img \
+    --DTBO     fw/unpacked/dtbo.img \
+    --RECOVERY fw/unpacked/recovery.img \
     --no-reboot
 ```
 
@@ -175,5 +171,12 @@ recovery.
 
 ## 8. Возврат к стоку
 
-Полная прошивка Odin/heimdall (BL+AP+CP+CSC, HOME_CSC не подойдёт — нужен CSC
-с wipe), затем Wipe в стоковом recovery. Knox остаётся сожжённым.
+Полная прошивка Odin (BL+AP+CP+CSC, HOME_CSC не подойдёт — нужен CSC с wipe),
+затем Wipe в стоковом recovery. Knox остаётся сожжённым.
+
+Прошивка обязана быть **binary ≥ 5** — иначе загрузчик ответит `FUSED 5 BINARY x`.
+
+Heimdall для полной прошивки не годится: проверено на этом устройстве —
+`PERSIST` записался, а следующий же раздел `MISC` (520 КБ) оборвался на
+`Failed to confirm end of file transfer sequence`, и сессия развалилась.
+Для стока — Odin из VM или OdinMac. Heimdall оставляем для наших образов.
