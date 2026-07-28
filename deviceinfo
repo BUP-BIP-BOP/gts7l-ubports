@@ -24,16 +24,20 @@ deviceinfo_kernel_clang_compile="true"
 deviceinfo_kernel_llvm_compile="true"
 deviceinfo_kernel_image_name="Image"
 
+# Pin the toolchain: the tools would default to android11-gsi / r383902 (LLVM 11)
+# for Halium 11, but this Samsung 4.19 tree is maintained against LLVM 14
+# (Droidian builds it with clang-r450784d). Older clang trips -Werror here.
+deviceinfo_kernel_clang_branch="master-kernel-build-2022"
+deviceinfo_kernel_clang_revision="r450784e"
+
 # console=tty0 is mandatory for the UT rootfs. buildproduct= selects the Samsung
 # board variant. androidboot.selinux=permissive keeps the container HALs alive.
 deviceinfo_kernel_cmdline="console=tty0 androidboot.hardware=qcom androidboot.memcg=1 androidboot.selinux=permissive lpm_levels.sleep_disabled=1 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 loop.max_part=7 cgroup.memory=nokmem,nosocket firmware_class.path=/vendor/firmware_mnt/image printk.devkmsg=on cpuinfo.chipname=SM8250 buildproduct=gts7l panic=4"
 
 # Boot image — device launched with Android 10 => header v2 (LineageOS BoardConfig).
-deviceinfo_generate_bootimg="true"
 deviceinfo_bootimg_header_version="2"
 deviceinfo_bootimg_os_version="11"          # VERIFY against stock boot.img
 deviceinfo_bootimg_os_patch_level="2022-04" # VERIFY against stock boot.img
-deviceinfo_bootimg_qcdt="false"
 deviceinfo_bootimg_partition_size="71303168"
 deviceinfo_bootimg_tailtype="SEAndroid"
 

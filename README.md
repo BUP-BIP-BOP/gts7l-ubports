@@ -40,6 +40,21 @@
 - [ ] Первая загрузка
 - [ ] Тач / графика / звук / LTE
 
+## Порядок работ
+
+```bash
+# 1. GitHub: форк ядра + создание репо + запуск сборки (нужен gh auth login)
+./tools/bootstrap-github.sh
+
+# 2. Планшет подключён по USB с включённой отладкой:
+./tools/collect-device-info.sh      # -> device-facts.txt
+./tools/set-halium-version.sh 13    # только если сток НЕ Android 11
+
+# 3. Когда скачана стоковая прошивка:
+./tools/inspect-stock-bootimg.sh AP_T875*.tar.md5   # -> os_version/patch_level
+./tools/make-vbmeta.sh                              # -> vbmeta-disabled.img
+```
+
 ## Сборка
 
 Пушнуть в GitHub → workflow `build` соберёт `boot.img`, `dtbo.img`,

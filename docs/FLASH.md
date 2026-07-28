@@ -13,16 +13,40 @@
 | TWRP для gts7l | собрать из [ianmacd/twrp_gts7l](https://github.com/ianmacd/twrp_gts7l) или взять сборку для gts7lwifi/gts7l с XDA |
 | Стоковая прошивка Android 11 (One UI 3.1), `T875XXU*` | samfw.com / Frija — нужна для вендор-блобов API 30 |
 
-## 1. Базовая прошивка = Android 11
+## 1. Базовая прошивка определяет версию Halium
 
-Halium 11 ждёт вендор-раздел уровня API 30. Ставь стоковый One UI 3.1 **целиком**
-через Odin/heimdall (AP+BL+CP+CSC), дай загрузиться, подключи Wi-Fi и подожди
-~5 минут — Samsung VaultKeeper должен «отпустить» бутлоадер, иначе heimdall
-дойдёт до 100% и завершится с `session end` ничего не записав.
+Halium использует вендор-раздел, который остаётся на устройстве. Уровень API
+вендора обязан совпадать с версией Halium.
 
-Даунгрейд с Android 12/13 на 11 блокируется анти-роллбэком (`up_param`/bootloader
-rev). Если стоковый Android 11 не принимается — оставайся на текущей версии и
-переключи порт на соответствующий Halium (13 для Android 13) в `deviceinfo`.
+**Сначала проверь bootloader binary rev** — 5-й символ с конца в номере прошивки
+(`T875XXU`**`2`**`BUxx` = BL rev 2):
+
+```bash
+adb shell getprop ro.boot.bootloader     # например T875XXU4CWx1 -> rev 4
+adb shell getprop ro.build.version.release
+```
+
+Samsung не даёт откатиться на прошивку с меньшим BL rev — Odin отвечает
+`SW REV CHECK FAIL`. Это необратимо: rev растёт при каждом обновлении.
+
+| Текущий Android | Что делать |
+|---|---|
+| 11 (One UI 3.x) | ничего, порт уже настроен на Halium 11 |
+| 12 | `tools/set-halium-version.sh 12`, либо откат на 11, если BL rev позволяет |
+| 13 (One UI 5.x) | `tools/set-halium-version.sh 13` |
+
+Скрипт синхронно правит `deviceinfo`, `gbinder.conf` (ApiLevel) и версию radio
+HAL в конфигах ofono.
+
+Стоковую прошивку ставь **целиком** (AP+BL+CP+CSC) через Odin/heimdall, дай
+загрузиться, подключи Wi-Fi и подожди ~5 минут — Samsung VaultKeeper должен
+«отпустить» бутлоадер, иначе heimdall дойдёт до 100% и завершится с
+`session end`, ничего не записав.
+
+> Продвинутый обход анти-роллбэка: с разблокированным бутлоадером и отключённым
+> vbmeta можно записать вендор от Android 11 прямо в `super` через TWRP+lpmake,
+> не трогая BL — проверки SW REV там нет. Риск: свежий BL/модем против старых
+> блобов. Только если Halium 13 не поедет.
 
 ## 2. macOS: чем флэшить
 
