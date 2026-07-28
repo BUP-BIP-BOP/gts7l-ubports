@@ -6,3 +6,8 @@ ota/
 *.img.zst
 *.tar.xz
 deviceinfo.bak
+bin/
+fw/
+device-facts.txt
+SAMFW/
+*.tar.md5

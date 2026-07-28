@@ -58,6 +58,13 @@ deviceinfo_dtb="vendor/qcom/kona.dtb vendor/qcom/kona-v2.dtb vendor/qcom/kona-v2
 deviceinfo_dtbo="samsung/gts7l/kona-sec-gts7l-eur-overlay-r00.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r01.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r02.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r03.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r04.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r05.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r06.dtbo samsung/gts7l/kona-sec-gts7l-eur-overlay-r07.dtbo"
 deviceinfo_kernel_apply_overlay="false"
 
+# Build the UBports unified recovery from this same kernel, so the port does not
+# depend on a TWRP image built for the Wi-Fi variant. 2560x1600 @ 320dpi -> xhdpi.
+deviceinfo_has_recovery_partition="true"
+deviceinfo_recovery_partition_size="86888448"
+deviceinfo_use_unified_recovery="true"
+deviceinfo_unified_recovery_ui_density="xhdpi"
+
 deviceinfo_halium_version="11"
 deviceinfo_ubuntu_touch_release="24.04-1.x"
 deviceinfo_use_overlaystore="true"

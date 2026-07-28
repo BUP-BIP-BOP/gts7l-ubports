@@ -6,12 +6,25 @@
 
 ## 0. Что должно быть на руках
 
-| Файл | Откуда |
+| Файл | Статус |
 |---|---|
-| `boot.img`, `dtbo.img`, `ubuntu.img` | артефакт CI (`gts7l-images`) |
-| `vbmeta-disabled.img` | `tools/make-vbmeta.sh` |
-| TWRP для gts7l | собрать из [ianmacd/twrp_gts7l](https://github.com/ianmacd/twrp_gts7l) или взять сборку для gts7lwifi/gts7l с XDA |
-| Стоковая прошивка Android 11 (One UI 3.1), `T875XXU*` | samfw.com / Frija — нужна для вендор-блобов API 30 |
+| `bin/heimdall` | ✅ собран (`tools/build-heimdall.sh`, v1.4.2, arm64) |
+| `vbmeta-disabled.img` | ✅ собран (`tools/make-vbmeta.sh`, AVB flags=2, algorithm NONE) |
+| `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/ubuntu.img` | ⏳ артефакт CI `gts7l-images` |
+| `fw/TWRP-*-gts7lwifi-*.tar` | ✅ скачан — **запасной вариант**, это сборка для Wi-Fi модели |
+| Стоковая T875XXS2BUK2 (Android 11) | ⏳ качается |
+
+Проверка готовности в любой момент:
+
+```bash
+./tools/flash-ut.sh check
+```
+
+Recovery берём **свой**, из той же сборки, что и ядро: в `deviceinfo` включён
+`deviceinfo_use_unified_recovery` — CI соберёт `recovery.img` с UBports recovery
+на нашем ядре и наших dtbo. TWRP от gts7lwifi лежит в `fw/` только на случай,
+если своё recovery не поедет: у Wi-Fi модели нет модема, dtb внутри той сборки
+чужой.
 
 ## 1. Базовая прошивка определяет версию Halium
 
@@ -51,22 +64,25 @@ HAL в конфигах ofono.
 ## 2. macOS: чем флэшить
 
 Fastboot на этом устройстве **нет** — только Download Mode + протокол Odin.
-`brew install heimdall` не существует, собираем из исходников:
+В brew heimdall отсутствует, поэтому он собран из исходников локально:
+`bin/heimdall`, v1.4.2, arm64. Пересобрать — `tools/build-heimdall.sh`.
 
-```bash
-brew install libusb cmake qt@5
-git clone https://github.com/Benjamin-Dobell/Heimdall
-cd Heimdall && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j"$(sysctl -n hw.ncpu)"
-sudo make install
-heimdall version
-```
+Апстрим на Apple Silicon не собирается «из коробки», скрипт чинит две вещи:
+CMake 4 отвергает `cmake_minimum_required(2.8.4)`, и статический libusb тянет
+символы IOKit/CoreFoundation/Security, которые апстрим не линкует.
 
-Если heimdall на macOS упирается в USB (`Protocol initialisation failed!`) —
-запасной путь: Odin на Windows/VM или `odin4` (Linux x86_64) в UTM.
+Стоковую прошивку (4 файла BL/AP/CP/CSC) heimdall'ом лить не надо — только Odin
+из Windows-VM. Наши три образа — heimdall'ом.
+
+Если heimdall упрётся в USB (`Protocol initialisation failed!`): другой порт,
+кабель из комплекта, USB-2.0 хаб. Запасной путь — Odin/`odin4`.
 
 Download Mode: выключить → **Vol-Down + Vol-Up + подключить USB** → Vol-Up для
-подтверждения.
+подтверждения. Проверка связи:
+
+```bash
+./tools/flash-ut.sh pit        # дамп таблицы разделов, ничего не пишет
+```
 
 ## 3. Разметка (LineageOS BoardConfig, проверено)
 
@@ -80,40 +96,42 @@ Download Mode: выключить → **Vol-Down + Vol-Up + подключить
 
 `boot.img` с AVB-футером обязан быть меньше 71303168 байт.
 
-## 4. Установка TWRP
+## 4. Recovery
 
 ```bash
-heimdall flash --VBMETA vbmeta-disabled.img --RECOVERY twrp-gts7l.img --no-reboot
+./tools/flash-ut.sh recovery      # vbmeta + recovery.img, спросит подтверждение
 ```
 
-Отключить USB, зажать Power+Vol-Down до выключения, затем сразу
-**Vol-Up + Power** — иначе стоковый Android перезапишет recovery.
+Отключить USB, зажать Power+Vol-Down до выключения экрана, **сразу** зажать
+Vol-Up + Power — если дать загрузиться стоковому Android, он вернёт своё
+recovery на место.
+
+Запасной вариант, если своё recovery не стартует:
+
+```bash
+tar -xf fw/TWRP-3.7.1_12-1-gts7lwifi-UNOFFICIAL.tar   # -> recovery.img
+IMG_DIR=. ./tools/flash-ut.sh recovery
+```
 
 ## 5. Rootfs → userdata (вариант A, рекомендуемый)
 
 halium-boot ищет образ как файл `/data/ubuntu.img` на разделе userdata.
-
-В TWRP: Wipe → Format Data (ext4), затем с Mac:
+Сначала в recovery отформатировать data (в UBports recovery — `Factory reset`
+→ `Wipe data`, в TWRP — Wipe → Format Data), затем:
 
 ```bash
-zstd -d ubuntu.img.zst
-adb shell mkdir -p /data
-adb push ubuntu.img /data/ubuntu.img     # ~3-4 ГБ, 5-10 минут
-adb shell sync
+zstd -d out/ubuntu.img.zst
+./tools/flash-ut.sh rootfs        # ~3-4 ГБ, 5-10 минут
 ```
 
 ## 6. Ядро
 
 ```bash
-heimdall flash \
-    --VBMETA vbmeta-disabled.img \
-    --BOOT boot.img \
-    --DTBO dtbo.img \
-    --no-reboot
+./tools/flash-ut.sh kernel        # vbmeta + boot + dtbo одной командой
 ```
 
-`--VBMETA` включать в **каждую** команду flash: одиночные записи на Samsung
-SM8250 фиксируются ненадёжно.
+`--VBMETA` включён в **каждую** команду flash скрипта намеренно: одиночные
+записи на Samsung SM8250 фиксируются ненадёжно.
 
 Отключить USB → Power → первая загрузка 2–5 минут.
 
