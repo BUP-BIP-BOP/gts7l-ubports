@@ -12,7 +12,8 @@
 | `vbmeta-disabled.img` | ✅ собран (`tools/make-vbmeta.sh`, AVB flags=2, algorithm NONE) |
 | `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/ubuntu.img` | ⏳ артефакт CI `gts7l-images` |
 | `fw/TWRP-*-gts7lwifi-*.tar` | ✅ скачан — **запасной вариант**, это сборка для Wi-Fi модели |
-| Стоковая T875XXS2BUK2 (Android 11) | ⏳ качается |
+| `SAMFW/` T875XXS2BUK2 (Android 11, BL rev 2) | ✅ скачана, 4 файла + HOME_CSC |
+| `fw/stock/{boot,recovery,dtbo,vbmeta}.img` | ✅ распакованы из AP — откат без перепрошивки целиком |
 
 Проверка готовности в любой момент:
 
@@ -153,6 +154,24 @@ lpmake --metadata-size 65536 --metadata-slots 2 --sparse --super-name super \
 
 Плюс: не занимает userdata, штатный OTA-путь UBports. Минус: ошибка = кирпич,
 и нужен `lpunpack` стокового `super.img` из прошивки Android 11.
+
+## 7.5 Быстрый откат на сток (без полной прошивки)
+
+Стоковые образы уже распакованы из AP в `fw/stock/`, размеры совпали с
+разметкой байт в байт (boot 71303168, recovery 86888448, dtbo 10485760):
+
+```bash
+bin/heimdall flash \
+    --VBMETA fw/stock/vbmeta.img \
+    --BOOT   fw/stock/boot.img \
+    --DTBO   fw/stock/dtbo.img \
+    --RECOVERY fw/stock/recovery.img \
+    --no-reboot
+```
+
+Вернёт загрузку Android, если `super` не трогали. Данные в userdata при этом
+остаются в состоянии «занято образом Ubuntu» — понадобится wipe из стокового
+recovery.
 
 ## 8. Возврат к стоку
 

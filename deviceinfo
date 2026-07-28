@@ -30,23 +30,29 @@ deviceinfo_kernel_image_name="Image"
 deviceinfo_kernel_clang_branch="master-kernel-build-2022"
 deviceinfo_kernel_clang_revision="r450784e"
 
-# console=tty0 is mandatory for the UT rootfs. buildproduct= selects the Samsung
-# board variant. androidboot.selinux=permissive keeps the container HALs alive.
-deviceinfo_kernel_cmdline="console=tty0 androidboot.hardware=qcom androidboot.memcg=1 androidboot.selinux=permissive lpm_levels.sleep_disabled=1 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 loop.max_part=7 cgroup.memory=nokmem,nosocket firmware_class.path=/vendor/firmware_mnt/image printk.devkmsg=on cpuinfo.chipname=SM8250 buildproduct=gts7l panic=4"
+# Stock T875XXS2BUK2 cmdline verbatim, with four changes:
+#   console=null -> console=tty0    required by the UT rootfs
+#   + androidboot.selinux=permissive  keeps the container HALs alive
+#   + loop.max_part=7                 rootfs is loop-mounted from /data/ubuntu.img
+#   + cgroup.memory=nokmem,nosocket, panic=4
+deviceinfo_kernel_cmdline="console=tty0 androidboot.hardware=qcom androidboot.memcg=1 androidboot.selinux=permissive lpm_levels.sleep_disabled=1 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 printk.devkmsg=on firmware_class.path=/vendor/firmware_mnt/image loop.max_part=7 cgroup.memory=nokmem,nosocket panic=4"
 
 # Boot image — device launched with Android 10 => header v2 (LineageOS BoardConfig).
 deviceinfo_bootimg_header_version="2"
-deviceinfo_bootimg_os_version="11"          # VERIFY against stock boot.img
-deviceinfo_bootimg_os_patch_level="2022-04" # VERIFY against stock boot.img
+deviceinfo_bootimg_os_version="11.0.0"
+deviceinfo_bootimg_os_patch_level="2021-11"
 deviceinfo_bootimg_partition_size="71303168"
 deviceinfo_bootimg_tailtype="SEAndroid"
 
+# Read out of the stock boot.img of T875XXS2BUK2 (AP tarball), not guessed:
+# ramdisk sits at 0x02000000 and tags at 0x01e00000, i.e. NOT the mkbootimg
+# defaults that the Droidian kernel-info for this family uses.
 deviceinfo_flash_pagesize="4096"
 deviceinfo_flash_offset_base="0x00000000"
 deviceinfo_flash_offset_kernel="0x00008000"
-deviceinfo_flash_offset_ramdisk="0x01000000"
-deviceinfo_flash_offset_second="0x00f00000"
-deviceinfo_flash_offset_tags="0x00000100"
+deviceinfo_flash_offset_ramdisk="0x02000000"
+deviceinfo_flash_offset_second="0x00000000"
+deviceinfo_flash_offset_tags="0x01e00000"
 deviceinfo_flash_offset_dtb="0x01f00000"
 
 # DTB is embedded in boot.img (BOARD_INCLUDE_DTB_IN_BOOTIMG := true upstream).

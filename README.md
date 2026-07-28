@@ -81,9 +81,12 @@
 
 Помечено `VERIFY` в [deviceinfo](deviceinfo) и overlay-файлах:
 
-1. `os_version` / `os_patch_level` из стокового `boot.img`
-2. Ревизия платы (`ro.boot.hw_rev`) → какой `overlay-rNN.dtbo` выбирает бутлоадер
-3. Регион: EUR / KOR / USA — набор dtbo в `deviceinfo_dtbo`
-4. Версия radio HAL (1.4 vs 1.5) → `overlay/system/etc/ofono/*`
-5. Пути backlight/flashlight в `gts7l.yaml`
-6. Список модулей → `tools/gen-modules-load.sh`
+1. ~~`os_version` / `os_patch_level`~~ — снято со стокового boot.img
+   T875XXS2BUK2: `11.0.0` / `2021-11`
+2. ~~Оффсеты boot.img~~ — сняты оттуда же: ramdisk `0x02000000`,
+   tags `0x01e00000` (не дефолты mkbootimg!)
+3. Ревизия платы (`ro.boot.hw_rev`) → какой `overlay-rNN.dtbo` выбирает бутлоадер
+4. Регион: сток — CSC `OXM` (мультирегион), dtbo сейчас EUR; сверить с `hw_rev`
+5. Версия radio HAL (1.4 vs 1.5) → `overlay/system/etc/ofono/*`
+6. Пути backlight/flashlight в `gts7l.yaml`
+7. Список модулей → `tools/gen-modules-load.sh`
