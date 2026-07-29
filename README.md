@@ -87,6 +87,28 @@
 См. [docs/BRINGUP.md](docs/BRINGUP.md) — порядок bring-up и известные ловушки
 семейства (binderfs, vaultkeeperd, HCI-socket, PS5169).
 
+## Что делать дальше
+
+```bash
+# 1. Забрать свежую сборку (в ней все фиксы ночи)
+RUN=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+rm -rf out && gh run download "$RUN" -n gts7l-kernel -D out && gh run download "$RUN" -n gts7l-rootfs -D out
+./tools/flash-ut.sh check
+
+# 2. Прошить: Download Mode -> recovery, затем TWRP -> rootfs, затем Download Mode -> kernel
+MULTI=1 ./tools/flash-ut.sh recovery
+./tools/flash-ut.sh rootfs
+MULTI=1 ./tools/flash-ut.sh kernel
+
+# 3. Загрузиться, дать 3 минуты, зайти в TWRP и снять дамп
+./tools/pull-debug.sh
+```
+
+Главное в дампе — файл `lomiri-environ.txt`: он показывает окружение
+**работающего** процесса оболочки прямо из `/proc`. По нему сразу видно, дошёл
+ли до неё `LD_PRELOAD=libtls-padding.so` — это единственная непроверенная
+гипотеза по текущему блокеру.
+
 ## Текущий блокер
 
 Всё ниже оболочки работает. `lomiri` должен запускаться вложенным сервером Mir
