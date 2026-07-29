@@ -54,6 +54,18 @@ jobs:
       - name: Build kernel and boot images
         run: ./build/build.sh
 
+      # build.sh leaves the images inside the device tarball (partitions/), not
+      # in out/ — those only appear when system-image-from-ota.sh unpacks the
+      # tarball in the rootfs job. Pull them out so this job can ship flashable
+      # files without doing the slow rootfs work.
+      - name: Extract the boot images from the device tarball
+        run: |
+          DEVICE="$(. ./deviceinfo && echo "$deviceinfo_codename")"
+          tar -xf "out/device_${DEVICE}.tar.xz" -C out partitions/
+          mv out/partitions/*.img out/
+          rmdir out/partitions
+          ls -l out/*.img
+
       # Samsung's ABL parses the AVB footer of the image it boots even with
       # verification disabled in vbmeta. Unsigned images stop at the splash
       # with no kernel and no USB, so sign here and ship ready-to-flash files.
