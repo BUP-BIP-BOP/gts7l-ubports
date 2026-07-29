@@ -45,16 +45,26 @@ std::exception::what: must have at least EGL 1.4
 | Модули платформы Mir | подставлены от q2q (ABI .15/.5) | не помогло |
 | Wayland-вложение | опции `wayland-host` в Mir 1.8 нет | неприменимо |
 
-### Непроверенная гипотеза
+| `LD_PRELOAD=libtls-padding.so` для оболочки | drop-in применён, проверено на железе | не помогло, 30 повторов ошибки |
+| AppArmor основным LSM | ядро пересобрано, `CONFIG_DEFAULT_SECURITY_APPARMOR=y` | не помогло |
 
-Композитор запускается через `lsc-wrapper`, который выставляет
-`LD_PRELOAD=libtls-padding.so` — libhybris требует эту прокладку, потому что
-Bionic libc затирает область TLS процесса glibc. Оболочка стартует через
-`lomiri-systemd-wrapper`, где этой переменной нет. Единственная оставшаяся
-разница между работающим и падающим процессом.
+### Текущая гипотеза: регрессия в свежих образах 24.04
 
-Заплатка добавлена в overlay
-(`etc/systemd/user/lomiri-*.service.d/10-gts7l.conf`) и ждёт проверки на железе.
+Порт-ориентир `samsung-q2q` (Halium 11, Samsung, UT 24.04) работает, и в его
+overlay лежат **собственные модули платформы Mir**:
+
+```
+usr/lib/aarch64-linux-gnu/mir/client-platform/android2.so.5
+usr/lib/aarch64-linux-gnu/mir/server-platform/graphics-android2.so.15
+```
+
+Каталог `mir/`, ABI `.15`. У нас — `mir1/` и `.16`, то есть андроидная платформа
+Mir переехала между сборками 24.04. Порт не возит такие бинарники без причины:
+штатные модули у них тоже не работали, и они закрепились на старом состоянии.
+
+Проверяется сборкой rootfs на **20.04** (`deviceinfo_ubuntu_touch_release`).
+focal + Halium 11 — самая обкатанная связка, стек Mir там другой. Ядро и boot не
+меняются, перепрошивается только `ubuntu.img`.
 
 ## Инструмент отладки
 
