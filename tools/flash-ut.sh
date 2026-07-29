@@ -33,7 +33,13 @@ BOOT="$IMG_DIR/boot.img"
 DTBO="$IMG_DIR/dtbo.img"
 RECOVERY="$IMG_DIR/recovery.img"
 ROOTFS="$IMG_DIR/ubuntu.img"
-VBMETA="$HERE/vbmeta-disabled.img"
+# CI ships vbmeta next to the images; tools/make-vbmeta.sh writes it to the repo
+# root. Prefer the build artifact so a stale local copy cannot be flashed.
+if [ -f "$IMG_DIR/vbmeta-disabled.img" ]; then
+    VBMETA="$IMG_DIR/vbmeta-disabled.img"
+else
+    VBMETA="$HERE/vbmeta-disabled.img"
+fi
 
 # LineageOS BoardConfig for gts7l
 BOOT_MAX=71303168

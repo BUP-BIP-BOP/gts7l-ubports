@@ -10,15 +10,27 @@
 |---|---|
 | `bin/heimdall` | ✅ собран (`tools/build-heimdall.sh`, v1.4.2, arm64) |
 | `vbmeta-disabled.img` | ✅ собран (`tools/make-vbmeta.sh`, AVB flags=2, algorithm NONE) |
-| `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/ubuntu.img` | ⏳ артефакт CI `gts7l-images` |
+| `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/vbmeta-disabled.img` | артефакт CI **`gts7l-kernel`**, ~135 МБ — уже подписан, готов к записи |
+| `out/ubuntu.img.zst` | артефакт CI **`gts7l-rootfs`**, ~700 МБ |
 | `fw/TWRP-*-gts7lwifi-*.tar` | ✅ скачан — **запасной вариант**, это сборка для Wi-Fi модели |
 | `fw/pit.txt` | ✅ снят с устройства, 88 записей |
 | Стоковая T875XXS5DXD1 (Android 13, binary 5) | нужна только ради `boot.img` — свериться по оффсетам и `os_patch_level` |
 
-Проверка готовности в любой момент:
+Скачать артефакты и проверить готовность:
 
 ```bash
+RUN=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run download "$RUN" -n gts7l-kernel -D out
+gh run download "$RUN" -n gts7l-rootfs -D out
 ./tools/flash-ut.sh check
+```
+
+Если канал до GitHub рвётся — качать с докачкой:
+
+```bash
+ID=$(gh api repos/:owner/gts7l-ubports/actions/runs/$RUN/artifacts --jq '.artifacts[]|select(.name=="gts7l-rootfs").id')
+curl -L --retry 5 --retry-all-errors -C - -H "Authorization: Bearer $(gh auth token)" \
+  -o out/rootfs.zip "https://api.github.com/repos/$(gh api user --jq .login)/gts7l-ubports/actions/artifacts/$ID/zip"
 ```
 
 Recovery берём **свой**, из той же сборки, что и ядро: в `deviceinfo` включён
