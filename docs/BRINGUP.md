@@ -126,6 +126,35 @@ getprop | head                # пусто = контейнер мёртв
 | Камеры | GW3X, последний по очереди пункт |
 | Backlight | рабочий узел `panel0-backlight`; пустышку `panel` прячет `device-hacks` |
 
+## Незакрытые пункты чеклиста
+
+**Звук.** Документация требует правок в `/etc/pulse/touch.pa`:
+
+```
+- load-module module-droid-discover voice_virtual_stream=true
++ load-module module-droid-discover rate=48000 quirks=+unload_call_exit
+```
+
+и в конец файла:
+
+```
+### Automatically load the audioflinger glue
+.ifexists module-droid-glue-24.so
+load-module module-droid-glue-24
+.endif
+```
+
+Не сделано: overlay заменяет файл целиком, а оригинал из rootfs 24.04 в руки не
+дался — в индексе репозитория UBports для noble пакет не нашёлся. Проверять
+звук всё равно нечем, пока не запустится оболочка. Когда дойдёт черёд — снять
+файл с устройства, поправить и положить в `overlay/system/etc/pulse/touch.pa`.
+
+**Bluetooth.** `bluebinder` в журнале сообщает `Failed to connect to bluetooth
+binder service`. Раздел документации про Bluetooth описывает бэкпорт для
+Halium 7.1 и к ядру 4.19 неприменим — разбираться по факту, после графики.
+
+**Камеры.** Не трогали.
+
 ## Ссылки
 
 - Ядро с UT-патчами: https://github.com/mukahraman/kernel_samsung_sm8250/tree/ubuntu-touch
