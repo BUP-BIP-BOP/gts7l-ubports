@@ -1,23 +1,31 @@
 gts7l:
-  Vendor: Samsung
+  Name: gts7l
   PrettyName: Galaxy Tab S7 LTE
+  Vendor: Samsung
   DeviceType: tablet
-  # 2560x1600 @ 11" -> LineageOS ships TARGET_SCREEN_DENSITY 320 (xhdpi)
+
+  # 2560x1600 on 11" -> LineageOS ships TARGET_SCREEN_DENSITY 320 (xhdpi).
+  # etc/ubuntu-touch-session.d/android.conf carries the same values on purpose:
+  # the guide asks ports to set both while DeviceInfo migration is unfinished.
   GridUnit: 16
+  WebkitDpr: 2.0
+
+  # Scalars, not single-item lists: that is the form the DeviceInfo docs use.
+  PrimaryOrientation: Landscape
   SupportedOrientations:
     - Portrait
     - InvertedPortrait
     - Landscape
     - InvertedLandscape
-  PrimaryOrientation:
-    - Landscape
-  LomiriInteractiveBlur:
-    - true
   NumBuiltInDisplays: 1
+  LomiriInteractiveBlur: true
+
+  # Measured on device: /sys/class/backlight has panel0-backlight (working,
+  # max_brightness 462) next to a dummy "panel" node with max_brightness 0.
+  # Pin the path so repowerd cannot pick the dummy; device-hacks hides it too.
+  BacklightSysfsPath: /sys/class/backlight/panel0-backlight
+
+  # No FlashlightSysfsPath: /sys/class/leds is empty, the tablet has no flash.
+
   OfonoPlugin: binder
   OfonoImplementsIms: true
-  # Confirmed on stock: /sys/class/backlight holds panel and panel0-backlight,
-  # /sys/class/leds is empty — the tablet has no flash LED, so no
-  # FlashlightSysfsPath here.
-  BacklightSysfsPath:
-    - /sys/class/backlight/panel0-backlight
