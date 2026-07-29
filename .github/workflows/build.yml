@@ -18,6 +18,10 @@ on:
         description: 'Also build ubuntu.img (slow; unchanged unless deviceinfo/overlay moved)'
         type: boolean
         default: true
+      reuse_kernel_from:
+        description: 'Run id to take the device tarball from, instead of rebuilding the kernel'
+        type: string
+        default: ''
 
 # A newer push supersedes an in-flight build of the same branch.
 concurrency:
@@ -33,6 +37,9 @@ jobs:
   # Kernel, boot, dtbo, recovery and the device tarball. ~20 minutes, and the
   # artifact is small enough to pull over a bad link.
   kernel:
+    # Skipped when reuse_kernel_from names an earlier run: the kernel takes
+    # ~20 minutes and does not change when only the rootfs release moves.
+    if: github.event_name != 'workflow_dispatch' || inputs.reuse_kernel_from == ''
     runs-on: ubuntu-latest
     container: ubuntu:22.04
     timeout-minutes: 180
@@ -111,7 +118,10 @@ jobs:
   # minutes and ~700 MB, and it only changes when deviceinfo or overlay/ do.
   rootfs:
     needs: kernel
-    if: github.event_name != 'workflow_dispatch' || inputs.build_rootfs
+    if: |
+      always()
+      && (github.event_name != 'workflow_dispatch' || inputs.build_rootfs)
+      && (needs.kernel.result == 'success' || needs.kernel.result == 'skipped')
     runs-on: ubuntu-latest
     container: ubuntu:22.04
     timeout-minutes: 180
@@ -132,6 +142,9 @@ jobs:
         with:
           name: gts7l-device-tarball
           path: out
+          # Falls back to this run's kernel job when the input is empty.
+          run-id: ${{ inputs.reuse_kernel_from || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Build flashable rootfs
         run: |
