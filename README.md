@@ -34,13 +34,14 @@
 ## Статус
 
 - [x] deviceinfo: разметка из LineageOS BoardConfig, оффсеты сняты со стокового boot.img
-- [x] CI на GitHub Actions (ubuntu:22.04 контейнер — нужны libtinfo5 и python2)
-- [x] Overlay: gbinder API 33, ofono binder (LTE), sensorfw HIDL, deviceinfo.yaml
-- [x] Первая сборка ядра прошла (Halium 11; под Halium 13 пересобрать)
-- [x] heimdall собран и разговаривает с устройством, PIT снят
-- [ ] Пересборка под Halium 13
-- [ ] Первая загрузка
-- [ ] Тач / графика / звук / LTE
+- [x] CI: две джобы — ядро (быстро, подписанные образы) и rootfs
+- [x] heimdall под macOS, PIT снят, прошивка отработана
+- [x] **Загружается**: ядро, halium-boot, Android-контейнер до `boot_completed`
+- [x] **GPU и панель**: Adreno 650, EGL 1.5, композитор рисует
+- [x] **Модем**: `IRadio/slot1` по HAL 1.5, ofono и telepathy подняты
+- [x] Чеклист UBports: udev-правила, AppArmor как LSM, overlay по документации
+- [ ] **Оболочка Lomiri** — падает на EGL, см. [docs/BRINGUP.md](docs/BRINGUP.md)
+- [ ] Тач / звук / камеры / Wi-Fi
 
 ## Порядок работ
 
@@ -57,7 +58,11 @@
 # 4. Прошивка
 ./tools/build-heimdall.sh           # -> bin/heimdall (форк amo13)
 ./tools/make-vbmeta.sh              # -> vbmeta-disabled.img
+./tools/sign-images.sh              # AVB-футер + board name, иначе ABL не грузит
 ./tools/flash-ut.sh check
+
+# 5. Дамп с неудачной загрузки (планшет в TWRP)
+./tools/pull-debug.sh
 ```
 
 ## Сборка
@@ -81,6 +86,13 @@
 
 См. [docs/BRINGUP.md](docs/BRINGUP.md) — порядок bring-up и известные ловушки
 семейства (binderfs, vaultkeeperd, HCI-socket, PS5169).
+
+## Текущий блокер
+
+Всё ниже оболочки работает. `lomiri` должен запускаться вложенным сервером Mir
+внутри системного композитора, но выбирает аппаратную платформу и падает на
+`must have at least EGL 1.4`, потому что дисплей уже занят. Разбор гипотез и
+что уже исключено — в [docs/BRINGUP.md](docs/BRINGUP.md).
 
 ## Что нужно проверить на живом устройстве
 
