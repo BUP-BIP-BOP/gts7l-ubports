@@ -25,6 +25,17 @@ fi
 
 lxc-ls -f > "$OUT/lxc.txt" 2>&1
 
+# The environment of the *running* shell process, straight from the kernel.
+# Settles arguments about whether MIR_SERVER_HOST_SOCKET, MIR_SOCKET or
+# LD_PRELOAD actually reach lomiri, instead of inferring it from unit files.
+for pid in $(pgrep -f "bin/lomiri" 2>/dev/null); do
+    {
+        echo "=== pid $pid: $(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)"
+        tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sort
+        echo
+    } >> "$OUT/lomiri-environ.txt" 2>&1
+done
+
 # The greeter's own stderr: it exits 1 and systemd keeps the output in its unit
 # journal, which the plain log files do not carry.
 journalctl -b --no-pager -u lomiri-full-greeter > "$OUT/greeter.txt" 2>&1

@@ -65,6 +65,9 @@ jobs:
             name="${spec%%:*}"; size="${spec##*:}"
             [ -f "out/$name.img" ] || continue
             python3 /tmp/avb/avbtool.py erase_footer --image "out/$name.img" 2>/dev/null || true
+            # Match stock: the header's product field carries SRPTC18C005.
+            # Header first, footer second, or the hash no longer covers it.
+            python3 tools/set-board-name.py "out/$name.img"
             python3 /tmp/avb/avbtool.py add_hash_footer \
               --image "out/$name.img" --partition_name "$name" \
               --partition_size "$size" --algorithm SHA256_RSA4096 \
