@@ -84,7 +84,14 @@ deviceinfo_use_unified_recovery="true"
 deviceinfo_unified_recovery_ui_density="xhdpi"
 
 deviceinfo_halium_version="11"
-deviceinfo_ubuntu_touch_release="24.04-1.x"
+# 20.04 while the shell is being brought up. Everything below the shell works on
+# 24.04-1.x, but lomiri never nests into the system compositor there and dies on
+# EGL init. The reference Samsung port (samsung-q2q) runs an older 24.04 build
+# whose Mir platform lives in mir/ with ABI .15, while this daily ships mir1/
+# with .16 — so the android platform moved under us. focal + Halium 11 is the
+# most travelled combination and tells us whether this is a 24.04 regression.
+# Revert to "24.04-1.x" once the shell comes up.
+deviceinfo_ubuntu_touch_release="20.04"
 # NOT set on purpose. With overlaystore the whole overlay/ tree is moved into
 # /opt/halium-overlay and applied at boot, but that mechanism only REPLACES
 # files that already exist in the rootfs; every new file we ship was skipped:
