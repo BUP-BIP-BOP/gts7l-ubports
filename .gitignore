@@ -12,3 +12,4 @@ device-facts.txt
 SAMFW/
 *.tar.md5
 .DS_Store
+logs/

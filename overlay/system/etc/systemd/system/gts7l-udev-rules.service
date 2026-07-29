@@ -1,0 +1,16 @@
+[Unit]
+Description=Generate device udev rules from the Android ueventd configuration
+# The container has to be mounted before /vendor and the container rootfs carry
+# the ueventd files, and the rules must exist before Lomiri starts.
+After=mount-android-partitions.service lxc-android-config.service
+Requires=mount-android-partitions.service
+Before=lightdm.service
+ConditionPathExists=/var/lib/lxc/android/rootfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/gts7l-generate-udev-rules.sh
+
+[Install]
+WantedBy=multi-user.target

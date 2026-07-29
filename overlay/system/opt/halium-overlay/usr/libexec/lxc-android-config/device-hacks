@@ -1,0 +1,30 @@
+# Device hacks, run by lxc-android-config once the Android container is up.
+# This file replaces the stock one, so it is bind-mounted from the overlay
+# rather than added: the target already exists in the rootfs.
+#
+# Modelled on the samsung-q2q port, which needs the same class of fixes.
+
+# The panel LCD class exports a second, useless backlight next to the working
+# panel0-backlight: max_brightness is 0, so systemd-backlight fails on it and
+# repowerd can pick the wrong one. Hide it behind an empty tmpfs.
+mount -o ro -t tmpfs tmpfs /sys/class/backlight/panel 2>/dev/null || true
+
+# Wi-Fi: wait for the container's property service and the vendor wifi HAL
+# before poking the driver, then bring the interface up.
+i=0
+while [ ! -e /dev/socket/property_service ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+i=0
+while [ "$(getprop init.svc.vendor.wifi_hal_legacy)" != "running" ] && [ $i -lt 60 ]; do sleep 0.5; i=$((i+1)); done
+
+modprobe wlan 2>/dev/null || true
+i=0
+while [ ! -e /dev/wlan ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done
+[ -e /dev/wlan ] && echo ON > /dev/wlan
+
+# Modem: the IPA driver gate has to be opened for data to flow.
+i=0
+while [ ! -e /dev/ipa ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done
+[ -e /dev/ipa ] && echo 1 > /dev/ipa
+
+# Suspend to memory rather than idle, so the tablet actually sleeps.
+[ -w /sys/power/mem_sleep ] && echo deep > /sys/power/mem_sleep

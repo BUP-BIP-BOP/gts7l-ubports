@@ -32,7 +32,11 @@ sign() { # image partition_name partition_size
     local img="$1" name="$2" size="$3"
     [ -f "$img" ] || { echo "missing $img"; return 1; }
 
+    # Header first, footer second: the footer hashes the image it covers, so
+    # patching the header afterwards would invalidate it.
     python3 "$AVBTOOL" erase_footer --image "$img" 2>/dev/null || true
+    python3 "$HERE/tools/set-board-name.py" "$img" "${BOARD_NAME:-SRPTC18C005}"
+
     python3 "$AVBTOOL" add_hash_footer \
         --image "$img" \
         --partition_name "$name" \

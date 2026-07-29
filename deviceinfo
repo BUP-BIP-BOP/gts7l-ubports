@@ -27,7 +27,7 @@ deviceinfo_kernel_source_branch="ubuntu-touch"
 # Fragment order matters: merge_config is last-wins and halium.config must win
 # over halium-extra.config (it re-enables CONFIG_ANDROID_BINDERFS, which the
 # Droidian fragment disables — without it the Android container never starts).
-deviceinfo_kernel_defconfig="vendor/kona-perf_defconfig vendor/samsung/kona-sec-common.config vendor/samsung/gts7l.config halium-extra.config halium.config"
+deviceinfo_kernel_defconfig="vendor/kona-perf_defconfig vendor/samsung/kona-sec-common.config vendor/samsung/gts7l.config halium-extra.config halium.config gts7l-ut.config"
 
 deviceinfo_kernel_clang_compile="true"
 deviceinfo_kernel_llvm_compile="true"
@@ -85,6 +85,14 @@ deviceinfo_unified_recovery_ui_density="xhdpi"
 
 deviceinfo_halium_version="11"
 deviceinfo_ubuntu_touch_release="24.04-1.x"
-deviceinfo_use_overlaystore="true"
+# NOT set on purpose. With overlaystore the whole overlay/ tree is moved into
+# /opt/halium-overlay and applied at boot, but that mechanism only REPLACES
+# files that already exist in the rootfs; every new file we ship was skipped:
+#   WARNING: //etc/deviceinfo/devices/gts7l.yaml doesn't exist, cannot overlay.
+#   WARNING: //opt/halium-overlay/etc/gbinder.conf doesn't exist, cannot overlay.
+# and the paths under overlay/system/opt/halium-overlay ended up nested twice.
+# Without it, overlay/system/* lands directly in the image, which is what this
+# port's layout (copied from samsung-q2q) already assumes.
+# deviceinfo_use_overlaystore="true"
 deviceinfo_system_partition_size="4000M"
 deviceinfo_rootfs_image_sector_size="4096"
