@@ -1,131 +1,122 @@
-# Ubuntu Touch → Samsung Galaxy Tab S7 LTE (SM-T875 / `gts7l`)
+# Ubuntu Touch — Samsung Galaxy Tab S7 LTE (SM-T875 / `gts7l`)
 
-Порт Ubuntu Touch 24.04 на базе Halium 11 для SM-T875. Сборка — GitHub Actions,
-прошивка — heimdall с macOS.
+Порт Ubuntu Touch 24.04 на базе Halium 11. Загружается, работают оболочка
+Lomiri, тач, Wi-Fi и модем.
 
-## Железо
+Сборка — GitHub Actions, прошивка — heimdall с macOS или Linux.
+
+## Устройство
 
 | | |
 |---|---|
 | Модель | SM-T875 (Galaxy Tab S7 LTE), кодовое имя `gts7l` |
 | SoC | Qualcomm SM8250 «kona», Snapdragon 865+ |
-| Экран | 11" 2560×1600 LCD, панель Novatek NT36523 (TDDI, тач в панели) |
+| Экран | 11", 2560×1600, Novatek NT36523 (тач в панели) |
+| GPU | Adreno 650 |
 | Звук | 4× Cirrus CS35L41 |
 | Wi-Fi/BT | QCA6390 |
 | Перо | Wacom W9021 |
-| Разметка | A-only, dynamic partitions (`super`), **fastboot нет** |
+| Разметка | A-only, dynamic partitions, **fastboot отсутствует** |
 | Ядро | Samsung downstream 4.19 |
 
-## На чём стоит порт
+## Что работает
 
-Полного AOSP-дерева собирать не нужно: с Halium 9+ UBports использует
-«standalone kernel» — собирается только ядро, rootfs и Android-контейнер
-скачиваются готовыми.
+| Узел | Статус | Примечание |
+|---|---|---|
+| Загрузка | ✅ | ядро, halium-boot, Android-контейнер до `boot_completed` |
+| Графика | ✅ | Adreno 650, EGL 1.5, композитор и Lomiri |
+| Экран блокировки, оболочка | ✅ | |
+| Тач | ✅ | |
+| Wi-Fi | ✅ | драйвер поднимает `device-hacks` |
+| Маршруты и локальная сеть | ✅ | ставит диспетчер NetworkManager |
+| Модем | ✅ | `IRadio/slot1`, HAL 1.5, ofono и telepathy стартуют |
+| Подсветка | ✅ | путь закреплён в DeviceInfo |
+| Звук | ⚠️ | конфиг по документации применён, на железе не проверен |
+| Вспышка | ⚠️ | путь прописан, не проверен |
+| Камеры | ❌ | нет `gstreamer1.0-droid`, см. «Открытые вопросы» |
+| USB-гаджет, adb | ❌ | конфиг usb-moded есть, гаджет не поднимается |
+| Bluetooth | ❌ | `bluebinder` не находит сервис |
+| Датчики, GPS, камера-вспышка | не проверялись | |
 
-- **Ядро**: [`mukahraman/kernel_samsung_sm8250`](https://github.com/mukahraman/kernel_samsung_sm8250),
-  ветка `ubuntu-touch` — уже содержит `vendor/samsung/gts7l.config`, все
-  `kona-sec-gts7l-*-overlay-r0*.dts`, `halium.config` с UT-фиксами и живые
-  заметки по отладке от bring-up соседнего gts7xl (июнь 2026).
-- **Соседи**: Droidian на SM-T970 (`gts7xlwifi`) работает полностью; порт на
-  SM-T870 (`gts7lwifi`) готов и ждёт железа. T875 = T870 + модем.
-- **Шаблон UT-порта**: Samsung Galaxy Z Fold 3 (`samsung-q2q`, Halium 11,
-  UT 24.04) — оттуда взяты overlay-конфиги (gbinder, ofono, sensorfw).
-
-## Статус
-
-- [x] deviceinfo: разметка из LineageOS BoardConfig, оффсеты сняты со стокового boot.img
-- [x] CI: две джобы — ядро (быстро, подписанные образы) и rootfs
-- [x] heimdall под macOS, PIT снят, прошивка отработана
-- [x] **Загружается**: ядро, halium-boot, Android-контейнер до `boot_completed`
-- [x] **GPU и панель**: Adreno 650, EGL 1.5, композитор рисует
-- [x] **Модем**: `IRadio/slot1` по HAL 1.5, ofono и telepathy подняты
-- [x] Чеклист UBports: udev-правила, AppArmor как LSM, overlay по документации
-- [ ] **Оболочка Lomiri** — падает на EGL, см. [docs/BRINGUP.md](docs/BRINGUP.md)
-- [ ] Тач / звук / камеры / Wi-Fi
-
-## Порядок работ
+## Быстрый старт
 
 ```bash
-# 1. GitHub: форк ядра + создание репо + запуск сборки (нужен gh auth login)
+# 1. Свой форк ядра, свой репозиторий, запуск сборки
+gh auth login
 ./tools/bootstrap-github.sh
 
-# 2. Планшет подключён по USB с включённой отладкой:
-./tools/collect-device-info.sh      # -> device-facts.txt
-
-# 3. Когда скачана стоковая прошивка Android 13 (binary >= 5):
-./tools/inspect-stock-bootimg.sh AP_T875XXS5DXD1*.tar.md5   # -> os_version/patch_level
-
-# 4. Прошивка
-./tools/build-heimdall.sh           # -> bin/heimdall (форк amo13)
-./tools/make-vbmeta.sh              # -> vbmeta-disabled.img
-./tools/sign-images.sh              # AVB-футер + board name, иначе ABL не грузит
+# 2. Артефакты последней сборки
+RUN=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run download "$RUN" -n gts7l-kernel -D out
+gh run download "$RUN" -n gts7l-rootfs -D out
 ./tools/flash-ut.sh check
 
-# 5. Дамп с неудачной загрузки (планшет в TWRP)
-./tools/pull-debug.sh
+# 3. Прошивка — подробности в docs/FLASH.md
+./tools/build-heimdall.sh          # heimdall под macOS (форк amo13)
+MULTI=1 ./tools/flash-ut.sh recovery
+./tools/flash-ut.sh rootfs
+MULTI=1 ./tools/flash-ut.sh kernel
+```
+
+> **При замене `ubuntu.img` обязательно стирать `system-data` и `user-data`.**
+> Конфигурация от предыдущего образа поверх нового ломает загрузку оболочки —
+> на этом порту такая смесь стоила суток отладки. Подробности в docs/FLASH.md.
+
+## Структура
+
+```
+deviceinfo                     конфигурация для halium-generic-adaptation-build-tools
+overlay/system/                файлы, попадающие в rootfs
+  etc/                           gbinder, ofono, NetworkManager, pulse, DeviceInfo, udev
+  usr/local/bin/                 скрипты порта: udev-правила, маршруты Wi-Fi, сбор логов
+  opt/halium-overlay/            подмены внутри Android-контейнера и вендора
+.github/workflows/build.yml    две джобы: kernel и rootfs
+tools/                         прошивка, подпись образов, диагностика
+docs/FLASH.md                  прошивка по шагам
+docs/BRINGUP.md                отладка: что было сломано, чем лечится, что открыто
 ```
 
 ## Сборка
 
-Пушнуть в GitHub → workflow `build` соберёт `boot.img`, `dtbo.img`,
-`ubuntu.img.zst` и положит в артефакт `gts7l-images` (~40 минут).
+Пуш в `master` запускает две джобы:
 
-Локально (нужен x86_64 Linux; на Apple Silicon — `docker run --platform linux/amd64`):
+- **kernel** — ядро, `boot.img`, `dtbo.img`, `recovery.img`, `vbmeta`. Образы подписываются AVB и готовы к записи. ~20 минут, артефакт 67 МБ.
+- **rootfs** — `ubuntu.img`. ~10 минут, 700 МБ. Пересобирается только при правках `deviceinfo` или `overlay/`.
 
-```bash
-./build.sh
-```
-
-## Прошивка
-
-См. [docs/FLASH.md](docs/FLASH.md). Кратко: стоковый Android 13 остаётся на
-месте как база вендор-блобов (API 33) → своё UBports recovery → `ubuntu.img`
-в `/data/ubuntu.img` → heimdall `--VBMETA --BOOT --DTBO`.
-
-## Отладка
-
-См. [docs/BRINGUP.md](docs/BRINGUP.md) — порядок bring-up и известные ловушки
-семейства (binderfs, vaultkeeperd, HCI-socket, PS5169).
-
-## Что делать дальше
+Ручной запуск умеет переиспользовать ядро прошлого прогона:
 
 ```bash
-# 1. Забрать свежую сборку (в ней все фиксы ночи)
-RUN=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-rm -rf out && gh run download "$RUN" -n gts7l-kernel -D out && gh run download "$RUN" -n gts7l-rootfs -D out
-./tools/flash-ut.sh check
-
-# 2. Прошить: Download Mode -> recovery, затем TWRP -> rootfs, затем Download Mode -> kernel
-MULTI=1 ./tools/flash-ut.sh recovery
-./tools/flash-ut.sh rootfs
-MULTI=1 ./tools/flash-ut.sh kernel
-
-# 3. Загрузиться, дать 3 минуты, зайти в TWRP и снять дамп
-./tools/pull-debug.sh
+gh workflow run build.yml -f reuse_kernel_from=<id прогона>
 ```
 
-Главное в дампе — файл `lomiri-environ.txt`: он показывает окружение
-**работающего** процесса оболочки прямо из `/proc`. По нему сразу видно, дошёл
-ли до неё `LD_PRELOAD=libtls-padding.so` — это единственная непроверенная
-гипотеза по текущему блокеру.
+Локальная сборка (нужен x86_64 Linux): `./build.sh`
 
-## Текущий блокер
+## Открытые вопросы
 
-Всё ниже оболочки работает. `lomiri` должен запускаться вложенным сервером Mir
-внутри системного композитора, но выбирает аппаратную платформу и падает на
-`must have at least EGL 1.4`, потому что дисплей уже занят. Разбор гипотез и
-что уже исключено — в [docs/BRINGUP.md](docs/BRINGUP.md).
+**Камеры.** В rootfs нет пакета `gstreamer1.0-droid`, дающего `droidcamsrc`, а в
+репозитории UBports для ветки 24.04-1.x его нет вовсе — там всего два пакета
+gstreamer. Нижний слой при этом на месте: в контейнере есть `libdroidmedia.so`
+и `minimediaservice`. Нужно понять, как камеры устроены в этой ветке UT.
 
-## Что нужно проверить на живом устройстве
+**USB-гаджет.** Под Ubuntu Touch планшет не определяется по USB вовсе, хотя в
+TWRP adb работает. Конфиг usb-moded с VID/PID Samsung добавлен, но гаджет не
+собирается — вероятно, нужен разбор `android_usb`/configfs на этом ядре.
+Обходной путь для отладки — SSH по Wi-Fi.
 
-Помечено `VERIFY` в [deviceinfo](deviceinfo) и overlay-файлах:
+**Bluetooth.** `bluebinder` сообщает `Failed to connect to bluetooth binder
+service`.
 
-1. ~~Оффсеты boot.img~~ — сняты со стокового образа: ramdisk `0x02000000`,
-   tags `0x01e00000` (не дефолты mkbootimg!). Сверить, что в Android 13 те же
-2. `os_version` / `os_patch_level` — сейчас значения от Android 11, заменить
-   на снятые из T875XXS5DXD1
-3. Ревизия платы (`ro.boot.hw_rev`) → какой `overlay-rNN.dtbo` выбирает бутлоадер
-4. Регион: CSC `SER`, dtbo сейчас EUR; сверить с `hw_rev`
-5. Версия radio HAL (сейчас 1.6) → `lshal | grep radio` внутри контейнера
-6. Пути backlight/flashlight в `gts7l.yaml`
-7. Список модулей → `tools/gen-modules-load.sh`
+## На чём основано
+
+- Ядро: [`mukahraman/kernel_samsung_sm8250`](https://github.com/mukahraman/kernel_samsung_sm8250), ветка `ubuntu-touch` — конфиги и device tree для gts7l плюс заметки по bring-up соседнего gts7xl
+- Шаблон порта и вендорные бинарники: [`samsung-q2q`](https://gitlab.com/ubports/porting/community-ports/android11/samsung-galaxy-z-fold3/samsung-q2q) (Halium 11, Samsung)
+- Починка маршрутов Wi-Fi: [`droidian-gts7lwifi`](https://github.com/iridite/droidian-gts7lwifi) — порт на SM-T870, то же железо без модема
+- [Документация UBports по портированию](https://docs.ubports.com/en/latest/porting/index.html)
+
+## Лицензия
+
+Скрипты и конфигурация — [GPL-3.0](LICENSE).
+
+Сторонние файлы в `overlay/`: `vndservicemanager` и `vaultkeeperd` взяты из
+порта samsung-q2q, скрипт починки маршрутов адаптирован из droidian-gts7lwifi.
+Права принадлежат их авторам.

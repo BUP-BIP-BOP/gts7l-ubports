@@ -1,174 +1,163 @@
-# Bring-up: состояние и порядок отладки gts7l
+# Bring-up: что было сломано и как чинилось
 
-## Что работает на железе
+Хронология сведена к причинам и лечению — чтобы следующий человек не повторял
+тупики. Всё ниже проверено на железе, а не выведено из документации.
 
-Проверено логами с устройства, не предположения.
+## Правило, которое стоило суток отладки
 
-| Слой | Статус | Доказательство |
-|---|---|---|
-| Ядро 4.19, dtb/dtbo | ✅ | `Hardware name: Samsung GTS7L PROJECT - PV REV0.. (board-id,3)` |
-| halium-boot, rootfs | ✅ | initrd монтирует userdata, `boot mode: halium` |
-| Android-контейнер | ✅ | `lxc-ls`: RUNNING; `android-set-boot-completion-property` завершился |
-| binder, binderfs | ✅ | `/dev/binderfs/{binder,hwbinder,vndbinder}` на месте |
-| libhybris | ✅ | `Using hybris leds` |
-| GPU | ✅ | `GL renderer: Adreno (TM) 650`, `EGL 1.5 Android META-EGL` |
-| Панель, композитор | ✅ | спиннер на экране, `Spinner using native orientation: Landscape` |
-| Модем | ✅ | `[gbinder-radio] Connected to android.hardware.radio@1.5::IRadio/slot1` |
-| **Оболочка Lomiri** | ❌ | падает на инициализации EGL, см. ниже |
+**При замене `ubuntu.img` нужно стирать `/data/system-data` и `/data/user-data`.**
 
-## Текущий блокер
+Эти каталоги лежат на userdata, а не внутри образа, и переживают его замену. В
+них живёт записываемый `/etc` и состояние сессии. Конфигурация от предыдущего
+образа поверх нового ломает запуск оболочки так, что симптом выглядит как
+проблема графики: композитор рисует спиннер, `lomiri` падает на инициализации
+EGL, в логах `must have at least EGL 1.4`.
 
-`lomiri` — сервер Mir. Дисплей уже держит системный композитор
-(`lomiri-system-compositor`), запущенный от root. Оболочка должна работать
-**вложенным** сервером внутри него, но выбирает аппаратную платформу и упирается
-в занятый дисплей:
-
-```
-mirserver: Starting
-Not using logind for session management: TakeControl failed — Only owner of session may take control
-Not using Linux VT subsystem: Failed to open current VT
-No session management supported
-library "eglSubDriverAndroid.so" not found
-Exception while creating graphics platform
-ERROR: platforms/android/server/gl_context.cpp(64): create_and_initialize_display
-std::exception::what: must have at least EGL 1.4
-```
-
-### Что уже исключено
-
-| Гипотеза | Проверка | Результат |
-|---|---|---|
-| Права на GPU-узлы | `lightdm` добавлен в `video`, `system`, `android_graphics`, `render` | не помогло |
-| udev-правила | сгенерированы 290 правил из `ueventd.rc` | не помогло само по себе |
-| Хост-сокет не задан | `MIR_SERVER_HOST_SOCKET`, `MIR_SOCKET`, аргумент `--host-socket` | платформа всё равно аппаратная |
-| Сокет отсутствует | `/run/mir_socket` есть, `srwxrwxrwx` | не причина |
-| Модули платформы Mir | подставлены от q2q (ABI .15/.5) | не помогло |
-| Wayland-вложение | опции `wayland-host` в Mir 1.8 нет | неприменимо |
-
-| `LD_PRELOAD=libtls-padding.so` для оболочки | drop-in применён, проверено на железе | не помогло, 30 повторов ошибки |
-| AppArmor основным LSM | ядро пересобрано, `CONFIG_DEFAULT_SECURITY_APPARMOR=y` | не помогло |
-
-### Текущая гипотеза: регрессия в свежих образах 24.04
-
-Порт-ориентир `samsung-q2q` (Halium 11, Samsung, UT 24.04) работает, и в его
-overlay лежат **собственные модули платформы Mir**:
-
-```
-usr/lib/aarch64-linux-gnu/mir/client-platform/android2.so.5
-usr/lib/aarch64-linux-gnu/mir/server-platform/graphics-android2.so.15
-```
-
-Каталог `mir/`, ABI `.15`. У нас — `mir1/` и `.16`, то есть андроидная платформа
-Mir переехала между сборками 24.04. Порт не возит такие бинарники без причины:
-штатные модули у них тоже не работали, и они закрепились на старом состоянии.
-
-Проверяется сборкой rootfs на **20.04** (`deviceinfo_ubuntu_touch_release`).
-focal + Halium 11 — самая обкатанная связка, стек Mir там другой. Ядро и boot не
-меняются, перепрошивается только `ubuntu.img`.
-
-## Инструмент отладки
-
-В образ ставится «чёрный ящик»: `ut-debug.service` через 60 секунд после
-загрузки собирает в `/var/log/ut-debug/`:
-
-- `logcat.txt` — лог Android-контейнера, единственное место, где отчитывается HAL композитора
-- `dmesg.txt`, `lshal.txt`, `android-ps.txt`, `getprop.txt`
-- `mir.txt` — сокеты Mir, права, окружение greeter'а, платформенные модули
-- `display.txt` — backlight, `/sys/class/drm`, `/dev/dri`, binderfs
-- `greeter.txt`, `lightdm-logs/` — вывод оболочки
-
-Забрать после неудачной загрузки:
+Сутки ушли на гипотезы про Mir, вложенный режим, права на GPU и версии
+платформенных модулей. Все оказались мимо. Помогла очистка данных.
 
 ```bash
-# планшет в TWRP
-adb shell 'e2fsck -fy /dev/block/by-name/userdata; mount -t ext4 /dev/block/by-name/userdata /data'
-adb pull /data/system-data/var/log/ut-debug logs/
+# в TWRP, перед заливкой нового образа
+adb shell 'rm -rf /data/system-data /data/user-data /data/android-data /data/.fscrypt'
 ```
 
-`e2fsck` обязателен: halium-boot делает `resize2fs` на userdata, и после жёсткого
-выключения раздел не монтируется с `I/O error`, пока его не проверишь.
+## Причины, найденные и устранённые
 
-## Порядок отладки с нуля
+### Загрузчик не отдавал управление ядру
 
-### 1. Ядро стартует
+Заставка Samsung висела бесконечно, USB не появлялся.
 
-Признак провала: заставка висит вечно **без** перезагрузки — загрузчик не передал
-управление. Если планшет перезагружается через минуту, ядро работает, а падает
-пользовательское пространство: сторожевой таймер Qualcomm.
+Виноваты были **не подпись и не board name** — это проверялось и отвергалось:
+TWRP грузится без AVB-футера и с чужим product в заголовке. Загрузка пошла,
+когда сошлись оффсеты, снятые из стокового boot.img: `ramdisk` 0x02000000 и
+`tags` 0x01e00000 — это **не** дефолты mkbootimg, которые используют соседние
+порты.
 
-Лог прошлой загрузки переживает перезагрузку:
+Диагностический признак: заставка висит **без** перезагрузки — загрузчик не
+передал управление. Перезагрузка через минуту — ядро работает, падает
+пользовательское пространство, сработал сторожевой таймер Qualcomm.
+
+### Контейнер не поднимался без binderfs
+
+`mount-android-partitions` выполняет `mount -t binder binder /dev/binderfs` без
+фолбэка. Фрагмент `halium.config` обязан идти **последним** в
+`deviceinfo_kernel_defconfig`: он перебивает `halium-extra.config`, где binderfs
+выключен ради Waydroid.
+
+### Композитор не стартовал: vndservicemanager
+
+```
+E SELinux : Unknown class service_manager
+I vndservicemanager: display.qservice : getService has failed, permission denied
+E SDM     : HWCSession::Init: Failed to acquire display.qservice
+```
+
+Политика SELinux в контейнере не загружается вовсе, класс `service_manager` не
+резолвится, и штатный бинарник Samsung отказывает в регистрации по умолчанию.
+`androidboot.selinux=permissive` тут не помогает — он лишь отключает
+принуждение, а не подставляет политику. Композитор Qualcomm не может
+опубликовать `display.qservice` и перезапускается каждые пять секунд.
+
+Лечится подменой `vendor/bin/vndservicemanager` из порта samsung-q2q.
+
+### Overlay не применялся
+
+`deviceinfo_use_overlaystore="true"` уводит весь overlay в `/opt/halium-overlay`,
+а механизм наложения умеет только **заменять существующие** файлы. Все новые
+файлы порта молча игнорировались:
+
+```
+WARNING: //etc/deviceinfo/devices/gts7l.yaml doesn't exist, cannot overlay.
+```
+
+Плюс пути, уже содержавшие `opt/halium-overlay`, получали двойную вложенность.
+Флаг убран, раскладка описана в [overlay/README.md](../overlay/README.md).
+
+### udev-правила не создавались
+
+Обязательный шаг документации, который легко пропустить: rootfs везёт пустой
+`70-android.rules` с комментарием «gets replaced by device-specific rules at
+run-time», но никто их не создаёт. Порт генерирует правила при загрузке из
+`ueventd.rc` контейнера и вендора — `gts7l-udev-rules.service`.
+
+### Wi-Fi
+
+Драйвер QCA6390 сам не грузится: нужен `modprobe wlan` и запись в `/dev/wlan`
+после появления узла. Делает `device-hacks`.
+
+Отдельно маршруты: NetworkManager получает аренду DHCP, но не ставит ни
+connected-, ни default-маршрут. Симптом «сеть есть, интернета нет», причём
+недоступна и локальная сеть. Ставит диспетчер `50-gts7l-wlan-routes`. Заодно
+`swlan0` и `p2p0` выведены из-под управления NetworkManager, иначе он
+конкурирует сам с собой.
+
+### Отладочные drop-in'ы, ломающие загрузку
+
+Собственные заплатки с `StandardOutput=append:/var/log/ut-debug/...` роняют юнит,
+если каталога нет: `Failed to set up standard output: No such file or directory`.
+Каталог создаёт `ut-debug.service`, но он стартует позже оболочки. Если ставишь
+такое перенаправление руками — создавай каталог заранее.
+
+## Инструменты отладки
+
+### Дамп с устройства
+
+`ut-debug.service` через минуту после загрузки складывает в `/var/log/ut-debug/`
+логи контейнера (`logcat`), `dmesg`, `lshal`, состояние Mir и дисплея, вывод
+оболочки и окружение живого процесса `lomiri` из `/proc`.
+
+```bash
+./tools/pull-debug.sh          # планшет в TWRP
+```
+
+`e2fsck` внутри скрипта обязателен: halium-boot делает `resize2fs` на userdata
+при каждой загрузке, и после жёсткого выключения раздел не монтируется с
+`I/O error`, пока его не проверишь.
+
+### Лог упавшей загрузки
+
+Переживает перезагрузку:
 
 ```bash
 adb pull /sys/fs/pstore/console-ramoops-0     # из TWRP
 ```
 
-### 2. Контейнер поднимается
+`Attempted to kill init!` означает панику из-за завершения init — обычно initrd
+не нашёл rootfs.
+
+### Доступ к работающей системе
+
+USB-гаджет под UT пока не поднимается, adb недоступен. Работает SSH по Wi-Fi, но
+сервер принимает только ключи:
 
 ```bash
-lxc-ls -f                     # ubuntu → RUNNING
-journalctl -u mount-android-partitions
-getprop | head                # пусто = контейнер мёртв
+# на планшете, в приложении «Терминал»
+sudo systemctl disable lxc-android-config-disable-ssh-socket.service
+sudo systemctl enable --now ssh
 ```
 
-Ловушка, задокументированная в `halium.config` ядра: `mount-android-partitions`
-выполняет `mount -t binder binder /dev/binderfs` без фолбэка. Без
-`CONFIG_ANDROID_BINDERFS` контейнер не стартует. Фрагмент `halium.config` обязан
-идти **последним** в `deviceinfo_kernel_defconfig` — он перебивает
-`halium-extra.config`, где binderfs выключен.
+Ключ проще доставить по HTTP с рабочей машины: `curl` в образе нет, есть
+`python3` и `wget`.
 
-### 3. Композитор
+## Открытые вопросы
 
-`Failed to acquire display.qservice` в logcat означает, что Samsung'овский
-`vndservicemanager` отказывает в регистрации сервисов: политика SELinux в
-контейнере не загружена, класс `service_manager` не резолвится, и штатный
-бинарник по умолчанию отвечает отказом. Лечится подменой из
-`overlay/system/opt/halium-overlay/vendor/bin/`.
+**Камеры.** Нет пакета `gstreamer1.0-droid` (`droidcamsrc`), и в репозитории
+UBports для 24.04-1.x его нет вовсе. Контейнер при этом готов: `libdroidmedia.so`
+и `minimediaservice` на месте, узлы `/dev/video0,1,32,33` существуют.
 
-### 4. Прочее
+**USB-гаджет.** Под UT устройство не определяется по USB вообще, хотя в TWRP adb
+работает. Конфиг usb-moded с VID `04E8` и PID `6860` не помог — нужен разбор
+`android_usb`/configfs на этом ядре.
 
-| Узел | Заметка |
-|---|---|
-| Wi-Fi | QCA6390, поднимается в `device-hacks` после появления `/dev/wlan` |
-| LTE | работает; HAL 1.5, конфиги в `etc/ofono/` |
-| S-Pen | Wacom W9021, отдельное устройство ввода, нужны libinput quirks |
-| Book Cover | STM32 POGO; ориентацию тачпада правят патчем dtbo |
-| USB-C DisplayPort | редрайвер PS5169, в ветке ядра уже включён |
-| Камеры | GW3X, последний по очереди пункт |
-| Backlight | рабочий узел `panel0-backlight`; пустышку `panel` прячет `device-hacks` |
+**Bluetooth.** `Failed to connect to bluetooth binder service`.
 
-## Незакрытые пункты чеклиста
-
-**Звук.** Документация требует правок в `/etc/pulse/touch.pa`:
-
-```
-- load-module module-droid-discover voice_virtual_stream=true
-+ load-module module-droid-discover rate=48000 quirks=+unload_call_exit
-```
-
-и в конец файла:
-
-```
-### Automatically load the audioflinger glue
-.ifexists module-droid-glue-24.so
-load-module module-droid-glue-24
-.endif
-```
-
-Не сделано: overlay заменяет файл целиком, а оригинал из rootfs 24.04 в руки не
-дался — в индексе репозитория UBports для noble пакет не нашёлся. Проверять
-звук всё равно нечем, пока не запустится оболочка. Когда дойдёт черёд — снять
-файл с устройства, поправить и положить в `overlay/system/etc/pulse/touch.pa`.
-
-**Bluetooth.** `bluebinder` в журнале сообщает `Failed to connect to bluetooth
-binder service`. Раздел документации про Bluetooth описывает бэкпорт для
-Halium 7.1 и к ядру 4.19 неприменим — разбираться по факту, после графики.
-
-**Камеры.** Не трогали.
+**Звук и вспышка.** Конфигурация применена по документации, на железе не
+проверялась.
 
 ## Ссылки
 
 - Ядро с UT-патчами: https://github.com/mukahraman/kernel_samsung_sm8250/tree/ubuntu-touch
-- Рабочий Droidian-порт T970: https://github.com/mukahraman/galaxy-tab-s7-plus-droidian
-- Порт-близнец без модема (T870): https://github.com/iridite/droidian-gts7lwifi
+- Порт-близнец без модема (SM-T870): https://github.com/iridite/droidian-gts7lwifi
+- Рабочий Droidian на SM-T970: https://github.com/mukahraman/galaxy-tab-s7-plus-droidian
 - Шаблон Samsung UT-порта: https://gitlab.com/ubports/porting/community-ports/android11/samsung-galaxy-z-fold3/samsung-q2q
 - Чеклист UBports: https://docs.ubports.com/en/latest/porting/configure_test_fix/index.html

@@ -138,8 +138,18 @@ IMG_DIR=. ./tools/flash-ut.sh recovery
 ## 5. Rootfs → userdata (вариант A, рекомендуемый)
 
 halium-boot ищет образ как файл `/data/ubuntu.img` на разделе userdata.
-Сначала в recovery отформатировать data (в UBports recovery — `Factory reset`
-→ `Wipe data`, в TWRP — Wipe → Format Data), затем:
+
+> **Обязательно при любой замене образа.** `system-data` и `user-data` лежат на
+> userdata, а не внутри `ubuntu.img`, и переживают его замену. Конфигурация от
+> старого образа поверх нового ломает запуск оболочки, причём симптом выглядит
+> как проблема графики — спиннер и `must have at least EGL 1.4`.
+>
+> ```bash
+> adb shell 'rm -rf /data/system-data /data/user-data /data/android-data /data/.fscrypt'
+> ```
+
+При первой установке раздел форматируется целиком (в UBports recovery —
+`Factory reset` → `Wipe data`, в TWRP — Wipe → Format Data), затем:
 
 ```bash
 zstd -d out/ubuntu.img.zst
