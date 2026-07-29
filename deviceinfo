@@ -90,8 +90,9 @@ deviceinfo_halium_version="11"
 # whose Mir platform lives in mir/ with ABI .15, while this daily ships mir1/
 # with .16 — so the android platform moved under us. focal + Halium 11 is the
 # most travelled combination and tells us whether this is a 24.04 regression.
+# Значение называется "focal", не "20.04" — так его ждёт prepare-fake-ota.sh.
 # Revert to "24.04-1.x" once the shell comes up.
-deviceinfo_ubuntu_touch_release="20.04"
+deviceinfo_ubuntu_touch_release="focal"
 # NOT set on purpose. With overlaystore the whole overlay/ tree is moved into
 # /opt/halium-overlay and applied at boot, but that mechanism only REPLACES
 # files that already exist in the rootfs; every new file we ship was skipped:
