@@ -1,6 +1,6 @@
 # Ubuntu Touch → Samsung Galaxy Tab S7 LTE (SM-T875 / `gts7l`)
 
-Порт Ubuntu Touch 24.04 на базе Halium 13 для SM-T875. Сборка — GitHub Actions,
+Порт Ubuntu Touch 24.04 на базе Halium 11 для SM-T875. Сборка — GitHub Actions,
 прошивка — heimdall с macOS.
 
 ## Железо

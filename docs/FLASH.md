@@ -9,7 +9,7 @@
 | Файл | Статус |
 |---|---|
 | `bin/heimdall` | ✅ собран (`tools/build-heimdall.sh`, v1.4.2, arm64) |
-| `vbmeta-disabled.img` | ✅ собран (`tools/make-vbmeta.sh`, AVB flags=2, algorithm NONE) |
+| `vbmeta-disabled.img` | собирается в CI и локально (`tools/make-vbmeta.sh`), AVB flags=3, algorithm NONE |
 | `out/boot.img`, `out/dtbo.img`, `out/recovery.img`, `out/vbmeta-disabled.img` | артефакт CI **`gts7l-kernel`**, ~135 МБ — уже подписан, готов к записи |
 | `out/ubuntu.img.zst` | артефакт CI **`gts7l-rootfs`**, ~700 МБ |
 | `fw/TWRP-*-gts7lwifi-*.tar` | ✅ скачан — **запасной вариант**, это сборка для Wi-Fi модели |
@@ -39,20 +39,36 @@ Recovery берём **свой**, из той же сборки, что и яд�
 если своё recovery не поедет: у Wi-Fi модели нет модема, dtb внутри той сборки
 чужой.
 
-## 1. База — стоковый Android 13, Halium 13
+## 1. База — стоковый Android 13, но Halium **11**
 
 Halium работает поверх вендор-раздела, который остаётся на устройстве, поэтому
-уровень API вендора обязан совпадать с версией Halium.
+версия Halium определяется **уровнем API вендора**, а не версией системы. На
+этом планшете они расходятся:
 
-Счётчик антиотката на этом планшете прожжён в **5**. Проверено практикой:
-попытка залить Android 11 (binary 2) отклоняется загрузчиком с
+```
+ro.build.version.sdk          33     ← система Android 13
+ro.vendor.build.version.sdk   30     ← вендор остался на Android 11
+ro.vndk.version               30
+```
+
+Samsung протащила систему через три релиза, не поднимая вендор. Подтверждается
+независимо: `lshal` показывает максимум `android.hardware.radio@1.5` — это
+поколение Android 11, при вендоре API 33 была бы 1.6. Поэтому порт настроен на
+Halium 11, `gbinder.conf` — `ApiLevel = 30`, ofono — `radio@1.5`.
+
+Переключается одной командой: `tools/set-halium-version.sh 11|12|13` правит
+`deviceinfo`, `gbinder.conf` и конфиги ofono синхронно.
+
+**Стоковую прошивку менять не нужно** — нужный вендор уже на устройстве.
+Счётчик антиотката прожжён в **5**, и попытка залить Android 11 отклоняется
+загрузчиком:
 
 ```
 FUSED 5 BINARY 2
 ```
 
-Счётчик необратим, откат невозможен. Расшифровка версий Samsung (проверена на
-`T875XXS2BUK2` = binary 2, `B` = Android 11, `U` = 2021, `K` = ноябрь):
+Расшифровка версий Samsung (проверена на `T875XXS2BUK2` = binary 2, `B` =
+Android 11, `U` = 2021, `K` = ноябрь):
 
 ```
 T875XXS 5 D X D 1
@@ -62,13 +78,8 @@ T875XXS 5 D X D 1
         └──────── binary (антиоткат) │ после него: B=Android 11, C=12, D=13, E=14
 ```
 
-binary 5 на этой модели — линейка Android 13, то есть вендор на устройстве уже
-API 33. **Стоковую прошивку менять не нужно**, порт переведён на Halium 13
-командой `tools/set-halium-version.sh 13` — она синхронно правит `deviceinfo`,
-`gbinder.conf` (ApiLevel 33) и версию radio HAL в конфигах ofono.
-
-Стоковый AP нужен только для сверки: `tools/inspect-stock-bootimg.sh` достанет
-из него `os_version`, `os_patch_level` и оффсеты boot.img.
+Стоковый AP нужен только для сверки: `tools/inspect-stock-bootimg.sh` достаёт из
+него `os_version`, `os_patch_level` и оффсеты boot.img.
 
 ## 2. macOS: чем флэшить
 
