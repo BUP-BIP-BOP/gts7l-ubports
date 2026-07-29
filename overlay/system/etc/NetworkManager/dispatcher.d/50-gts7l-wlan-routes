@@ -1,0 +1,11 @@
+#!/bin/sh
+# Reinstall the Wi-Fi routes whenever an interface comes up or renews its lease.
+IFACE="$1"; ACTION="$2"
+case "$IFACE" in
+    wlan[0-9]*|swlan0|wlp1s0) ;;
+    *) exit 0 ;;
+esac
+case "$ACTION" in
+    up|dhcp4-change) /usr/local/bin/gts7l-wlan-routes-fix ;;
+esac
+exit 0

@@ -25,7 +25,10 @@ gts7l:
   # Pin the path so repowerd cannot pick the dummy; device-hacks hides it too.
   BacklightSysfsPath: /sys/class/backlight/panel0-backlight
 
-  # No FlashlightSysfsPath: /sys/class/leds is empty, the tablet has no flash.
+  # The flash is there after all — the earlier empty /sys/class/leds listing was
+  # taken before the camera driver had probed. Nodes present:
+  #   led:torch_0, led:torch_1, led:flash_0, led:flash_1, /sys/class/camera/flash
+  FlashlightSysfsPath: /sys/class/leds/led:torch_0/brightness
 
   OfonoPlugin: binder
   OfonoImplementsIms: true
