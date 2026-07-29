@@ -25,7 +25,9 @@ gh run download "$RUN" -n gts7l-rootfs -D out
 ./tools/flash-ut.sh check
 ```
 
-Если канал до GitHub рвётся — качать с докачкой:
+`gh run download` на нестабильном канале рвётся регулярно (`read: operation
+timed out`) и, что хуже, теряет всё скачанное — докачки у него нет. Надёжнее
+через curl, он продолжит с места обрыва:
 
 ```bash
 ID=$(gh api repos/:owner/gts7l-ubports/actions/runs/$RUN/artifacts --jq '.artifacts[]|select(.name=="gts7l-rootfs").id')
